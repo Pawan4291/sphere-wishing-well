@@ -17,42 +17,38 @@ export async function connectWallet(
   const result = await autoConnect({
     dapp: {
       name: 'Sphere Wishing Well',
-
-      description:
-        'Cast wishes, vote with your wallet, see community predictions come true.',
-
-      url:
-        typeof window !== 'undefined'
-          ? window.location.origin
-          : '',
-
-      
+      description: 'Cast wishes, vote with your wallet, see community predictions come true.',
+      url: typeof window !== 'undefined' ? window.location.origin : '',
     },
-
     walletUrl: SPHERE_WALLET_URL,
-
     silent,
   });
 
   clientInstance = result.client;
 
-  const raw: any = await result.client.query(
-    'sphere_getIdentity'
-  );
+  const raw: any = await result.client.query('sphere_getIdentity');
+
+  console.log('IDENTITY RAW:', raw); // ← keep this to debug what SDK actually returns
+
+  // Validate we got a real address back
+  const directAddress = raw?.directAddress || raw?.address || '';
+  if (!directAddress) {
+    throw new Error(
+      'Wallet connected but no directAddress returned. ' +
+      'Check what sphere_getIdentity actually returns in console.'
+    );
+  }
 
   const identity: WalletIdentity = {
     nametag: raw?.nametag || '',
-    directAddress: raw?.directAddress || '',
+    directAddress,
     l1Address: raw?.l1Address || '',
     chainPubkey: raw?.chainPubkey || '',
   };
 
   identityCache = identity;
 
-  return {
-    client: result.client,
-    identity,
-  };
+  return { client: result.client, identity };
 }
 
 export async function sendUCT(
@@ -61,18 +57,23 @@ export async function sendUCT(
 ): Promise<void> {
 
   if (!clientInstance) {
-    throw new Error('Wallet not connected');
+    throw new Error('Wallet not connected. Please connect your wallet first.');
+  }
+
+  // Guard: catch empty/undefined address BEFORE the SDK crashes on .startsWith()
+  if (!recipientAddress || typeof recipientAddress !== 'string' || recipientAddress.trim() === '') {
+    throw new Error(
+      `Cannot send UCT: recipient address is "${recipientAddress}". ` +
+      'The wish creator may not have a valid wallet address stored.'
+    );
   }
 
   const amount = (
-    BigInt(amountUCT) *
+    BigInt(Math.floor(amountUCT)) *
     BigInt('1000000000000000000')
   ).toString();
 
-  console.log('TRANSFER DEBUG', {
-    recipientAddress,
-    amount,
-  });
+  console.log('TRANSFER DEBUG', { recipientAddress, amount, amountUCT });
 
   await clientInstance.intent('send', {
     coinId: 'UCT',
@@ -89,22 +90,15 @@ export function getCachedIdentity() {
   return identityCache;
 }
 
-export function onIncomingTransfer(
-  cb: (data: any) => void
-) {
+export function onIncomingTransfer(cb: (data: any) => void) {
   if (!clientInstance) return;
-
   clientInstance.on('transfer:incoming', cb);
 }
 
 export async function disconnectWallet() {
-
   if (clientInstance) {
-
     await clientInstance.disconnect();
-
     clientInstance = null;
-
     identityCache = null;
   }
 }

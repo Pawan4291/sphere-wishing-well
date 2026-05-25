@@ -63,9 +63,16 @@ export function useWishes() {
       creatorNametag: string;
       creatorAddress: string;
     }) => {
+      // Guard: must have a real address before saving or sending
+      if (!params.creatorAddress || params.creatorAddress.trim() === '') {
+        throw new Error(
+          'Your wallet address is missing. Please disconnect and reconnect your wallet.'
+        );
+      }
+
       const now = Date.now();
 
-      // Real UCT transaction — sends to creator's own wallet
+      // Real UCT transaction — sends to creator's own wallet (skin in the game)
       await sendUCT(params.creatorAddress, params.stakeUCT);
 
       const id = crypto.randomUUID();
@@ -75,7 +82,7 @@ export function useWishes() {
         text: params.text,
         category: params.category,
         creator_nametag: params.creatorNametag,
-        creator_address: params.creatorAddress,
+        creator_address: params.creatorAddress, // stored here — must not be empty
         staked_uct: params.stakeUCT,
         created_at: now,
         expires_at: now + params.duration,
@@ -98,6 +105,19 @@ export function useWishes() {
       voterNametag: string;
     }) => {
       const { wish, voteType, voterAddress, voterNametag } = params;
+
+      // Guard: voter must have a valid address
+      if (!voterAddress || voterAddress.trim() === '') {
+        throw new Error('Your wallet address is missing. Please reconnect your wallet.');
+      }
+
+      // Guard: wish must have a valid creator address to receive payment
+      if (!wish.creatorAddress || wish.creatorAddress.trim() === '') {
+        throw new Error(
+          'This wish has no valid creator address and cannot receive UCT. ' +
+          'It may have been created before wallet addresses were stored correctly.'
+        );
+      }
 
       if (wish.votes.some(v => v.voterAddress === voterAddress)) {
         throw new Error('You already voted on this wish');
