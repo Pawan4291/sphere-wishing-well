@@ -1,9 +1,5 @@
 'use client';
 
-// Sphere Connect wrapper
-// Uses @unicitylabs/sphere-sdk/connect/browser autoConnect
-// Works inside Sphere desktop iframe (PostMessage) or extension
-
 import type { WalletIdentity } from '../types/wish';
 import { SPHERE_WALLET_URL } from './constants';
 
@@ -13,6 +9,7 @@ let identityCache: WalletIdentity | null = null;
 export async function connectWallet(
   silent = false
 ): Promise<{ client: any; identity: WalletIdentity }> {
+
   const { autoConnect } = await import(
     '@unicitylabs/sphere-sdk/connect/browser'
   );
@@ -20,17 +17,28 @@ export async function connectWallet(
   const result = await autoConnect({
     dapp: {
       name: 'Sphere Wishing Well',
+
       description:
         'Cast wishes, vote with your wallet, see community predictions come true.',
-      url: typeof window !== 'undefined' ? window.location.origin : '',
+
+      url:
+        typeof window !== 'undefined'
+          ? window.location.origin
+          : '',
+
+      
     },
+
     walletUrl: SPHERE_WALLET_URL,
+
     silent,
   });
 
   clientInstance = result.client;
 
-  const raw: any = await result.client.query('sphere_getIdentity');
+  const raw: any = await result.client.query(
+    'sphere_getIdentity'
+  );
 
   const identity: WalletIdentity = {
     nametag: raw?.nametag || '',
@@ -51,25 +59,25 @@ export async function sendUCT(
   recipientAddress: string,
   amountUCT: number
 ): Promise<void> {
+
   if (!clientInstance) {
     throw new Error('Wallet not connected');
   }
 
   const amount = (
-    BigInt(amountUCT) * BigInt('1000000000000000000')
+    BigInt(amountUCT) *
+    BigInt('1000000000000000000')
   ).toString();
 
-  console.log('TRANSFER DEBUG');
-
-  console.log({
+  console.log('TRANSFER DEBUG', {
     recipientAddress,
     amount,
   });
 
   await clientInstance.intent('send', {
-   coinId: 'UCT',
-recipient: recipientAddress,
-amount,
+    coinId: 'UCT',
+    recipient: recipientAddress,
+    amount,
   });
 }
 
@@ -81,16 +89,22 @@ export function getCachedIdentity() {
   return identityCache;
 }
 
-export function onIncomingTransfer(cb: (data: any) => void) {
+export function onIncomingTransfer(
+  cb: (data: any) => void
+) {
   if (!clientInstance) return;
 
   clientInstance.on('transfer:incoming', cb);
 }
 
 export async function disconnectWallet() {
+
   if (clientInstance) {
+
     await clientInstance.disconnect();
+
     clientInstance = null;
+
     identityCache = null;
   }
 }

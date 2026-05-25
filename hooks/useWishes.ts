@@ -1,13 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type {
-  Wish,
-  WishCategory,
-  WishDuration,
-  VoteType,
-} from '../types/wish';
-
+import type { Wish, WishCategory, WishDuration, VoteType } from '../types/wish';
 import { supabase } from '../lib/supabase';
 import { sendUCT } from '../lib/sphere';
 
@@ -24,13 +18,13 @@ export function useWishes() {
       .from('votes')
       .select('*');
 
-    const mapped: Wish[] = (wishesData || []).map((w: any) => {
-      const votes = (votesData || [])
+    const mapped: Wish[] = (wishesData ?? []).map((w: any) => {
+      const votes = (votesData ?? [])
         .filter((v: any) => v.wish_id === w.id)
         .map((v: any) => ({
           voterAddress: v.voter_address,
           voterNametag: v.voter_nametag,
-          voteType: v.vote_type,
+          voteType: v.vote_type as VoteType,
           votedAt: v.voted_at,
         }));
 
@@ -48,7 +42,7 @@ export function useWishes() {
         fulfilCount: w.fulfil_count,
         noFulfilCount: w.no_fulfil_count,
         votes,
-      };
+      } as Wish;
     });
 
     setWishes(mapped);
@@ -56,9 +50,7 @@ export function useWishes() {
 
   useEffect(() => {
     refresh();
-
     const interval = setInterval(refresh, 5000);
-
     return () => clearInterval(interval);
   }, [refresh]);
 
@@ -73,46 +65,27 @@ export function useWishes() {
     }) => {
       const now = Date.now();
 
-      // REAL TOKEN TX
-      await sendUCT(
-        params.creatorAddress,
-        params.stakeUCT
-      );
+      // Real UCT transaction — sends to creator's own wallet
+      await sendUCT(params.creatorAddress, params.stakeUCT);
 
-      const wish: Wish = {
-        id: crypto.randomUUID(),
-        text: params.text,
-        category: params.category,
-        creatorNametag: params.creatorNametag,
-        creatorAddress: params.creatorAddress,
-        stakedUCT: params.stakeUCT,
-        createdAt: now,
-        expiresAt: now + params.duration,
-        duration: params.duration,
-        status: 'active',
-        votes: [],
-        fulfilCount: 0,
-        noFulfilCount: 0,
-      };
+      const id = crypto.randomUUID();
 
       await supabase.from('wishes').insert({
-        id: wish.id,
-        text: wish.text,
-        category: wish.category,
-        creator_nametag: wish.creatorNametag,
-        creator_address: wish.creatorAddress,
-        staked_uct: wish.stakedUCT,
-        created_at: wish.createdAt,
-        expires_at: wish.expiresAt,
-        duration: wish.duration,
-        status: wish.status,
+        id,
+        text: params.text,
+        category: params.category,
+        creator_nametag: params.creatorNametag,
+        creator_address: params.creatorAddress,
+        staked_uct: params.stakeUCT,
+        created_at: now,
+        expires_at: now + params.duration,
+        duration: params.duration,
+        status: 'active',
         fulfil_count: 0,
         no_fulfil_count: 0,
       });
 
       await refresh();
-
-      return wish;
     },
     [refresh]
   );
@@ -127,18 +100,17 @@ export function useWishes() {
       const { wish, voteType, voterAddress, voterNametag } = params;
 
       if (wish.votes.some(v => v.voterAddress === voterAddress)) {
-        throw new Error('You already voted');
+        throw new Error('You already voted on this wish');
       }
-
       if (wish.creatorAddress === voterAddress) {
-        throw new Error('Cannot vote your own wish');
+        throw new Error('Cannot vote on your own wish');
+      }
+      if (wish.status !== 'active') {
+        throw new Error('This wish has expired');
       }
 
-      // REAL TOKEN TX
-      await sendUCT(
-        wish.creatorAddress,
-        1
-      );
+      // Real UCT transaction — 1 UCT goes P2P to wish creator
+      await sendUCT(wish.creatorAddress, 1);
 
       await supabase.from('votes').insert({
         wish_id: wish.id,
@@ -151,11 +123,8 @@ export function useWishes() {
       await supabase
         .from('wishes')
         .update({
-          fulfil_count:
-            wish.fulfilCount + (voteType === 'fulfil' ? 1 : 0),
-
-          no_fulfil_count:
-            wish.noFulfilCount + (voteType === 'nofulfil' ? 1 : 0),
+          fulfil_count: wish.fulfilCount + (voteType === 'fulfil' ? 1 : 0),
+          no_fulfil_count: wish.noFulfilCount + (voteType === 'nofulfil' ? 1 : 0),
         })
         .eq('id', wish.id);
 
@@ -164,10 +133,13 @@ export function useWishes() {
     [refresh]
   );
 
-  return {
-    wishes,
-    createWish,
-    vote,
-    refresh,
-  };
+  const hasVoted = useCallback(
+    (wishId: string, voterAddress: string) => {
+      const wish = wishes.find(w => w.id === wishId);
+      return wish?.votes.some(v => v.voterAddress === voterAddress) ?? false;
+    },
+    [wishes]
+  );
+
+  return { wishes, createWish, vote, refresh, hasVoted };
 }
