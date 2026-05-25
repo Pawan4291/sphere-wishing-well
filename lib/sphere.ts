@@ -91,44 +91,27 @@ export async function sendUCT(
 ): Promise<void> {
 
   if (!clientInstance) {
-    throw new Error(
-      'Wallet not connected. Please connect your wallet first.'
-    );
+    throw new Error('Wallet not connected');
   }
 
-  if (
-    !recipientAddress ||
-    typeof recipientAddress !== 'string' ||
-    recipientAddress.trim() === ''
-  ) {
-    throw new Error(
-      `Cannot send UCT: recipient is invalid ("${recipientAddress}")`
-    );
+  if (!recipientAddress) {
+    throw new Error('Recipient missing');
   }
 
-  // SDK works better with @nametag
-  const recipient = recipientAddress.startsWith('@')
-    ? recipientAddress
-    : `@${recipientAddress.replace('@', '')}`;
+  // 1 UCT = 1000000 base units
+  const amount = (amountUCT * 1000000).toString();
 
-  // convert to smallest unit
-  const amount = (
-    BigInt(Math.floor(amountUCT)) *
-    BigInt('1000000000000000000')
-  ).toString();
-
-  console.log('TRANSFER DEBUG', {
-    recipient,
+  console.log('PAYMENTS SEND DEBUG', {
+    recipient: recipientAddress,
     amount,
   });
 
-  await clientInstance.intent('send', {
+  // REAL SDK CALL
+  await clientInstance.payments.send({
+    recipient: recipientAddress,
     coinId: 'UCT',
-    recipient,
     amount,
   });
-
-  console.log('UCT TRANSFER SUCCESS');
 }
 
 export function getClient() {
