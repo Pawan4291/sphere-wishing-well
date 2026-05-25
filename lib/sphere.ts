@@ -76,20 +76,20 @@ export async function sendUCT(
 
   if (!recipientAddress || typeof recipientAddress !== 'string' || recipientAddress.trim() === '') {
     throw new Error(
-      `Cannot send UCT: recipient address is empty or undefined ("${recipientAddress}"). ` +
-      'The wish creator may not have a valid wallet address stored.'
+      `Cannot send UCT: recipient address is empty ("${recipientAddress}").`
     );
   }
 
-  // ✅ Send amount as a plain number, NOT a BigInt string
-  // The SDK docs show: amount: 100 (not "1000000000000000000")
-  // 1 UCT = 1 (the SDK handles decimals internally for intent('send'))
-  console.log('TRANSFER DEBUG', { recipientAddress, amountUCT });
+  // ✅ amount must be a STRING of the value in smallest units (18 decimals)
+  // 1 UCT = '1000000000000000000' — matches SDK docs: amount: '1000000'
+  const amount = (BigInt(Math.floor(amountUCT)) * BigInt('1000000000000000000')).toString();
+
+  console.log('TRANSFER DEBUG', { recipientAddress, amount });
 
   await clientInstance.intent('send', {
     coinId: 'UCT',
     recipient: recipientAddress,
-    amount: amountUCT,   // ← plain number, e.g. 1 for 1 UCT
+    amount,  // ← string like '1000000000000000000', NOT a number, NOT a BigInt object
   });
 }
 
