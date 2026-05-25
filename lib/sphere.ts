@@ -64,44 +64,13 @@ export async function sendUCT(
   console.log({
     recipientAddress,
     amount,
-    clientInstance,
   });
 
-  // TRY METHOD 1
-  try {
-    console.log('Trying send intent...');
-
-    const res = await clientInstance.intent('send', {
-      recipient: recipientAddress,
-      amount,
-      coinId: 'UCT',
-    });
-
-    console.log('SEND RESULT:', res);
-
-    return;
-  } catch (err) {
-    console.error('SEND FAILED:', err);
-  }
-
-  // TRY METHOD 2
-  try {
-    console.log('Trying transfer intent...');
-
-    const res = await clientInstance.intent('transfer', {
-      to: recipientAddress,
-      amount,
-      token: 'UCT',
-    });
-
-    console.log('TRANSFER RESULT:', res);
-
-    return;
-  } catch (err) {
-    console.error('TRANSFER FAILED:', err);
-  }
-
-  alert('All wallet transfer methods failed. Check console.');
+  await clientInstance.intent('transfer', {
+    assetId: 'uct',
+    recipientAddress,
+    amount,
+  });
 }
 
 export function getClient() {
