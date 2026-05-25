@@ -66,10 +66,10 @@ export async function sendUCT(
     amount,
   });
 
-  await clientInstance.intent('transfer', {
-    assetId: 'uct',
-    recipientAddress,
-    amount,
+  await clientInstance.intent('send', {
+   coinId: 'UCT',
+recipient: recipientAddress,
+amount,
   });
 }
 
