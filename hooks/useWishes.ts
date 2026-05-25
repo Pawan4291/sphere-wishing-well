@@ -1,8 +1,15 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { Wish, WishCategory, WishDuration, VoteType } from '../types/wish';
+import type {
+  Wish,
+  WishCategory,
+  WishDuration,
+  VoteType,
+} from '../types/wish';
+
 import { supabase } from '../lib/supabase';
+import { sendUCT } from '../lib/sphere';
 
 export function useWishes() {
   const [wishes, setWishes] = useState<Wish[]>([]);
@@ -55,89 +62,107 @@ export function useWishes() {
     return () => clearInterval(interval);
   }, [refresh]);
 
-  const createWish = useCallback(async (params: {
-    text: string;
-    category: WishCategory;
-    duration: WishDuration;
-    stakeUCT: number;
-    creatorNametag: string;
-    creatorAddress: string;
-  }) => {
-    const now = Date.now();
+  const createWish = useCallback(
+    async (params: {
+      text: string;
+      category: WishCategory;
+      duration: WishDuration;
+      stakeUCT: number;
+      creatorNametag: string;
+      creatorAddress: string;
+    }) => {
+      const now = Date.now();
 
-    const wish: Wish = {
-      id: crypto.randomUUID(),
-      text: params.text,
-      category: params.category,
-      creatorNametag: params.creatorNametag,
-      creatorAddress: params.creatorAddress,
-      stakedUCT: params.stakeUCT,
-      createdAt: now,
-      expiresAt: now + params.duration,
-      duration: params.duration,
-      status: 'active',
-      votes: [],
-      fulfilCount: 0,
-      noFulfilCount: 0,
-    };
+      // REAL TOKEN TX
+      await sendUCT(
+        params.creatorAddress,
+        params.stakeUCT
+      );
 
-    await supabase.from('wishes').insert({
-      id: wish.id,
-      text: wish.text,
-      category: wish.category,
-      creator_nametag: wish.creatorNametag,
-      creator_address: wish.creatorAddress,
-      staked_uct: wish.stakedUCT,
-      created_at: wish.createdAt,
-      expires_at: wish.expiresAt,
-      duration: wish.duration,
-      status: wish.status,
-      fulfil_count: 0,
-      no_fulfil_count: 0,
-    });
+      const wish: Wish = {
+        id: crypto.randomUUID(),
+        text: params.text,
+        category: params.category,
+        creatorNametag: params.creatorNametag,
+        creatorAddress: params.creatorAddress,
+        stakedUCT: params.stakeUCT,
+        createdAt: now,
+        expiresAt: now + params.duration,
+        duration: params.duration,
+        status: 'active',
+        votes: [],
+        fulfilCount: 0,
+        noFulfilCount: 0,
+      };
 
-    await refresh();
+      await supabase.from('wishes').insert({
+        id: wish.id,
+        text: wish.text,
+        category: wish.category,
+        creator_nametag: wish.creatorNametag,
+        creator_address: wish.creatorAddress,
+        staked_uct: wish.stakedUCT,
+        created_at: wish.createdAt,
+        expires_at: wish.expiresAt,
+        duration: wish.duration,
+        status: wish.status,
+        fulfil_count: 0,
+        no_fulfil_count: 0,
+      });
 
-    return wish;
-  }, [refresh]);
+      await refresh();
 
-  const vote = useCallback(async (params: {
-    wish: Wish;
-    voteType: VoteType;
-    voterAddress: string;
-    voterNametag: string;
-  }) => {
-    const { wish, voteType, voterAddress, voterNametag } = params;
+      return wish;
+    },
+    [refresh]
+  );
 
-    if (wish.votes.some(v => v.voterAddress === voterAddress)) {
-      throw new Error('You already voted');
-    }
+  const vote = useCallback(
+    async (params: {
+      wish: Wish;
+      voteType: VoteType;
+      voterAddress: string;
+      voterNametag: string;
+    }) => {
+      const { wish, voteType, voterAddress, voterNametag } = params;
 
-    if (wish.creatorAddress === voterAddress) {
-      throw new Error('Cannot vote your own wish');
-    }
+      if (wish.votes.some(v => v.voterAddress === voterAddress)) {
+        throw new Error('You already voted');
+      }
 
-    await supabase.from('votes').insert({
-      wish_id: wish.id,
-      voter_address: voterAddress,
-      voter_nametag: voterNametag,
-      vote_type: voteType,
-      voted_at: Date.now(),
-    });
+      if (wish.creatorAddress === voterAddress) {
+        throw new Error('Cannot vote your own wish');
+      }
 
-    await supabase
-      .from('wishes')
-      .update({
-        fulfil_count:
-          wish.fulfilCount + (voteType === 'fulfil' ? 1 : 0),
+      // REAL TOKEN TX
+      await sendUCT(
+        wish.creatorAddress,
+        1
+      );
 
-        no_fulfil_count:
-          wish.noFulfilCount + (voteType === 'nofulfil' ? 1 : 0),
-      })
-      .eq('id', wish.id);
+      await supabase.from('votes').insert({
+        wish_id: wish.id,
+        voter_address: voterAddress,
+        voter_nametag: voterNametag,
+        vote_type: voteType,
+        voted_at: Date.now(),
+      });
 
-    await refresh();
-  }, [refresh]);
+      await supabase
+        .from('wishes')
+        .update({
+          fulfil_count:
+            wish.fulfilCount + (voteType === 'fulfil' ? 1 : 0),
+
+          no_fulfil_count:
+            wish.noFulfilCount + (voteType === 'nofulfil' ? 1 : 0),
+        })
+        .eq('id', wish.id);
+
+      await refresh();
+    },
+    [refresh]
+  );
 
   return {
     wishes,
