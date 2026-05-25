@@ -7,15 +7,27 @@ import { CATEGORIES, DURATIONS, STAKE_OPTIONS } from '../lib/constants';
 interface CreateWishModalProps {
   open: boolean;
   onClose: () => void;
+
   onSubmit: (params: {
     text: string;
     category: WishCategory;
     duration: WishDuration;
     stakeUCT: number;
+
+    creatorNametag: string;
+    creatorAddress: string;
   }) => Promise<void>;
+
+  creatorNametag: string;
 }
 
-export default function CreateWishModal({ open, onClose, onSubmit }: CreateWishModalProps) {
+export default function CreateWishModal({
+  open,
+  onClose,
+  onSubmit,
+  creatorNametag,
+}: CreateWishModalProps) {
+
   const [text, setText] = useState('');
   const [category, setCategory] = useState<WishCategory>('community');
   const [duration, setDuration] = useState<WishDuration>(86400000);
@@ -26,42 +38,93 @@ export default function CreateWishModal({ open, onClose, onSubmit }: CreateWishM
   if (!open) return null;
 
   const handleSubmit = async () => {
-    if (!text.trim()) { setError('Write your wish first'); return; }
-    if (text.length > 200) { setError('Wish too long (max 200 chars)'); return; }
+
+    if (!text.trim()) {
+      setError('Write your wish first');
+      return;
+    }
+
+    if (text.length > 200) {
+      setError('Wish too long (max 200 chars)');
+      return;
+    }
+
     setError(null);
     setSubmitting(true);
+
     try {
-      await onSubmit({ text: text.trim(), category, duration, stakeUCT });
+
+      await onSubmit({
+        text: text.trim(),
+        category,
+        duration,
+        stakeUCT,
+
+        // IMPORTANT:
+        creatorNametag,
+        creatorAddress: creatorNametag, // use nametag NOT directAddress
+      });
+
       setText('');
       setCategory('community');
       setDuration(86400000);
       setStakeUCT(1);
+
       onClose();
+
     } catch (e: any) {
+
+      console.error(e);
+
       setError(e?.message ?? 'Failed to cast wish');
+
     } finally {
+
       setSubmitting(false);
+
     }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4 pb-4 sm:pb-0">
+
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        onClick={onClose}
+      />
 
       <div className="relative w-full max-w-lg bg-slate-900 border border-slate-700/60 rounded-3xl p-6 shadow-2xl">
+
         {/* Title */}
         <div className="flex items-center justify-between mb-5">
+
           <div>
-            <h2 className="text-xl font-bold text-white">🪙 Cast a Wish</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Your stake UCT goes to your own wallet · votes cost 1 UCT each</p>
+            <h2 className="text-xl font-bold text-white">
+              🪙 Cast a Wish
+            </h2>
+
+            <p className="text-xs text-slate-500 mt-0.5">
+              Your stake UCT goes to your own wallet · votes cost 1 UCT each
+            </p>
           </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-white text-xl">✕</button>
+
+          <button
+            onClick={onClose}
+            className="text-slate-500 hover:text-white text-xl"
+          >
+            ✕
+          </button>
+
         </div>
 
         {/* Wish text */}
         <div className="mb-4">
-          <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 block">Your Wish</label>
+
+          <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 block">
+            Your Wish
+          </label>
+
           <textarea
             value={text}
             onChange={e => setText(e.target.value)}
@@ -71,14 +134,24 @@ export default function CreateWishModal({ open, onClose, onSubmit }: CreateWishM
             className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm
               placeholder:text-slate-600 focus:outline-none focus:border-amber-500/60 resize-none"
           />
-          <p className="text-xs text-slate-600 text-right mt-1">{text.length}/200</p>
+
+          <p className="text-xs text-slate-600 text-right mt-1">
+            {text.length}/200
+          </p>
+
         </div>
 
         {/* Category */}
         <div className="mb-4">
-          <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 block">Category</label>
+
+          <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 block">
+            Category
+          </label>
+
           <div className="flex flex-wrap gap-2">
+
             {CATEGORIES.map(c => (
+
               <button
                 key={c.value}
                 onClick={() => setCategory(c.value)}
@@ -89,15 +162,24 @@ export default function CreateWishModal({ open, onClose, onSubmit }: CreateWishM
               >
                 {c.emoji} {c.label}
               </button>
+
             ))}
+
           </div>
+
         </div>
 
         {/* Duration */}
         <div className="mb-4">
-          <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 block">Expires In</label>
+
+          <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 block">
+            Expires In
+          </label>
+
           <div className="flex gap-2">
+
             {DURATIONS.map(d => (
+
               <button
                 key={d.value}
                 onClick={() => setDuration(d.value)}
@@ -108,17 +190,24 @@ export default function CreateWishModal({ open, onClose, onSubmit }: CreateWishM
               >
                 {d.short}
               </button>
+
             ))}
+
           </div>
+
         </div>
 
         {/* Stake */}
         <div className="mb-5">
+
           <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 block">
             Your Stake — goes to your own wallet
           </label>
+
           <div className="flex gap-2">
+
             {STAKE_OPTIONS.map(s => (
+
               <button
                 key={s}
                 onClick={() => setStakeUCT(s)}
@@ -129,11 +218,18 @@ export default function CreateWishModal({ open, onClose, onSubmit }: CreateWishM
               >
                 {s} UCT
               </button>
+
             ))}
+
           </div>
+
         </div>
 
-        {error && <p className="text-sm text-red-400 mb-4 text-center">{error}</p>}
+        {error && (
+          <p className="text-sm text-red-400 mb-4 text-center">
+            {error}
+          </p>
+        )}
 
         <button
           onClick={handleSubmit}
@@ -142,8 +238,13 @@ export default function CreateWishModal({ open, onClose, onSubmit }: CreateWishM
             hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed
             transition-all duration-200 shadow-lg shadow-amber-500/20"
         >
-          {submitting ? '⏳ Sending to wallet...' : '✨ Cast Wish · Stake ' + stakeUCT + ' UCT'}
+
+          {submitting
+            ? '⏳ Sending to wallet...'
+            : `✨ Cast Wish · Stake ${stakeUCT} UCT`}
+
         </button>
+
       </div>
     </div>
   );
