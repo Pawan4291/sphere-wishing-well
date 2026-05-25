@@ -33,7 +33,7 @@ export function useWishes() {
     creatorAddress: string;
   }) => {
     // Send stake UCT to creator's own address (skin in game)
-    await sendUCT(params.creatorAddress, params.stakeUCT);
+     // await sendUCT(params.creatorAddress, params.stakeUCT);
 
     const now = Date.now();
     const wish: Wish = {
@@ -76,7 +76,7 @@ export function useWishes() {
     if (wish.status !== 'active') throw new Error('This wish has already expired');
 
     // Send 1 UCT to wish creator as vote stake
-    await sendUCT(wish.creatorAddress, 1);
+    // await sendUCT(wish.creatorAddress, 1);
 
     const updated: Wish = {
       ...wish,
