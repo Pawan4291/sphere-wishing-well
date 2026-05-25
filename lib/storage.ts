@@ -38,8 +38,10 @@ export function resolveExpiredWishes(): void {
   const resolved = wishes.map(w => {
     if (w.status === 'active' && now > w.expiresAt) {
       changed = true;
-      const status = w.fulfilCount >= w.noFulfilCount ? 'fulfilled' : 'unfulfilled';
-      return { ...w, status };
+      const status: 'fulfilled' | 'unfulfilled' =
+  w.fulfilCount >= w.noFulfilCount ? 'fulfilled' : 'unfulfilled';
+
+return { ...w, status };
     }
     return w;
   });
