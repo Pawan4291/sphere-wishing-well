@@ -25,7 +25,7 @@ export async function connectWallet(silent = false): Promise<{ client: any; iden
 
   clientInstance = result.client;
 
-  const raw = await result.client.query('sphere_getIdentity');
+ const raw: any = await result.client.query('sphere_getIdentity');
   const identity: WalletIdentity = {
     nametag: raw?.nametag,
     directAddress: raw?.directAddress,
