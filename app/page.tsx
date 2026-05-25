@@ -210,11 +210,12 @@ export default function HomePage() {
       )}
 
       {/* Create modal */}
-      <CreateWishModal
-        open={showCreate}
-        onClose={() => setShowCreate(false)}
-        onSubmit={handleCreateWish}
-      />
+<CreateWishModal
+  open={showCreate}
+  onClose={() => setShowCreate(false)}
+  onSubmit={handleCreateWish}
+  creatorNametag={wallet.identity?.nametag ?? ''}
+/>
     </div>
   );
 }
