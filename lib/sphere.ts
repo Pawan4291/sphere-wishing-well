@@ -55,26 +55,53 @@ export async function sendUCT(
     throw new Error('Wallet not connected');
   }
 
-  // UCT = 18 decimals
   const amount = (
     BigInt(amountUCT) * BigInt('1000000000000000000')
   ).toString();
 
-  console.log('Sending UCT:', {
+  console.log('TRANSFER DEBUG');
+
+  console.log({
     recipientAddress,
     amount,
+    clientInstance,
   });
 
-  // REAL WALLET POPUP
-  await clientInstance.intent('transfer', {
-    transfers: [
-      {
-        to: recipientAddress,
-        amount,
-        token: 'UCT',
-      },
-    ],
-  });
+  // TRY METHOD 1
+  try {
+    console.log('Trying send intent...');
+
+    const res = await clientInstance.intent('send', {
+      recipient: recipientAddress,
+      amount,
+      coinId: 'UCT',
+    });
+
+    console.log('SEND RESULT:', res);
+
+    return;
+  } catch (err) {
+    console.error('SEND FAILED:', err);
+  }
+
+  // TRY METHOD 2
+  try {
+    console.log('Trying transfer intent...');
+
+    const res = await clientInstance.intent('transfer', {
+      to: recipientAddress,
+      amount,
+      token: 'UCT',
+    });
+
+    console.log('TRANSFER RESULT:', res);
+
+    return;
+  } catch (err) {
+    console.error('TRANSFER FAILED:', err);
+  }
+
+  alert('All wallet transfer methods failed. Check console.');
 }
 
 export function getClient() {
