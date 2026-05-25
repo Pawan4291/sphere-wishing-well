@@ -26,27 +26,41 @@ export async function connectWallet(
 
   clientInstance = result.client;
 
-  const raw: any = await result.client.query('sphere_getIdentity');
+  // ✅ Use identity from the connection result directly — do NOT call query() separately
+  // The autoConnect result has: result.connection.identity
+  const raw: any = result.connection?.identity ?? {};
 
-  console.log('IDENTITY RAW:', raw); // ← keep this to debug what SDK actually returns
+  console.log('IDENTITY RAW from connection:', raw);
 
-  // Validate we got a real address back
-  const directAddress = raw?.directAddress || raw?.address || '';
+  // ✅ Fallback: if connection.identity is empty, try querying — but wrap in try/catch
+  let directAddress = raw?.directAddress || '';
+  let nametag = raw?.nametag || '';
+  let l1Address = raw?.l1Address || '';
+  let chainPubkey = raw?.chainPubkey || '';
+
   if (!directAddress) {
-    throw new Error(
-      'Wallet connected but no directAddress returned. ' +
-      'Check what sphere_getIdentity actually returns in console.'
-    );
+    try {
+      const queried: any = await result.client.query('sphere_getIdentity');
+      console.log('IDENTITY RAW from query:', queried);
+      directAddress = queried?.directAddress || '';
+      nametag = queried?.nametag || nametag;
+      l1Address = queried?.l1Address || l1Address;
+      chainPubkey = queried?.chainPubkey || chainPubkey;
+    } catch (e) {
+      console.warn('sphere_getIdentity query failed:', e);
+    }
   }
 
   const identity: WalletIdentity = {
-    nametag: raw?.nametag || '',
+    nametag,
     directAddress,
-    l1Address: raw?.l1Address || '',
-    chainPubkey: raw?.chainPubkey || '',
+    l1Address,
+    chainPubkey,
   };
 
   identityCache = identity;
+
+  console.log('FINAL IDENTITY:', identity);
 
   return { client: result.client, identity };
 }
@@ -60,25 +74,22 @@ export async function sendUCT(
     throw new Error('Wallet not connected. Please connect your wallet first.');
   }
 
-  // Guard: catch empty/undefined address BEFORE the SDK crashes on .startsWith()
   if (!recipientAddress || typeof recipientAddress !== 'string' || recipientAddress.trim() === '') {
     throw new Error(
-      `Cannot send UCT: recipient address is "${recipientAddress}". ` +
+      `Cannot send UCT: recipient address is empty or undefined ("${recipientAddress}"). ` +
       'The wish creator may not have a valid wallet address stored.'
     );
   }
 
-  const amount = (
-    BigInt(Math.floor(amountUCT)) *
-    BigInt('1000000000000000000')
-  ).toString();
-
-  console.log('TRANSFER DEBUG', { recipientAddress, amount, amountUCT });
+  // ✅ Send amount as a plain number, NOT a BigInt string
+  // The SDK docs show: amount: 100 (not "1000000000000000000")
+  // 1 UCT = 1 (the SDK handles decimals internally for intent('send'))
+  console.log('TRANSFER DEBUG', { recipientAddress, amountUCT });
 
   await clientInstance.intent('send', {
     coinId: 'UCT',
     recipient: recipientAddress,
-    amount,
+    amount: amountUCT,   // ← plain number, e.g. 1 for 1 UCT
   });
 }
 
