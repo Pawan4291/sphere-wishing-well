@@ -2,25 +2,56 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { Wish, WishCategory, WishDuration, VoteType } from '../types/wish';
-import { loadWishes, saveWishes, addWish, updateWish, resolveExpiredWishes } from '../lib/storage';
-import { sendUCT } from '../lib/sphere';
+import { supabase } from '../lib/supabase';
 
 export function useWishes() {
   const [wishes, setWishes] = useState<Wish[]>([]);
 
-  const refresh = useCallback(() => {
-    resolveExpiredWishes();
-    setWishes(loadWishes());
+  const refresh = useCallback(async () => {
+    const { data: wishesData } = await supabase
+      .from('wishes')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    const { data: votesData } = await supabase
+      .from('votes')
+      .select('*');
+
+    const mapped: Wish[] = (wishesData || []).map((w: any) => {
+      const votes = (votesData || [])
+        .filter((v: any) => v.wish_id === w.id)
+        .map((v: any) => ({
+          voterAddress: v.voter_address,
+          voterNametag: v.voter_nametag,
+          voteType: v.vote_type,
+          votedAt: v.voted_at,
+        }));
+
+      return {
+        id: w.id,
+        text: w.text,
+        category: w.category,
+        creatorNametag: w.creator_nametag,
+        creatorAddress: w.creator_address,
+        stakedUCT: w.staked_uct,
+        createdAt: w.created_at,
+        expiresAt: w.expires_at,
+        duration: w.duration,
+        status: w.status,
+        fulfilCount: w.fulfil_count,
+        noFulfilCount: w.no_fulfil_count,
+        votes,
+      };
+    });
+
+    setWishes(mapped);
   }, []);
 
-  // Load on mount + resolve expired
   useEffect(() => {
     refresh();
-  }, [refresh]);
 
-  // Check expiry every 60 seconds
-  useEffect(() => {
-    const interval = setInterval(refresh, 60_000);
+    const interval = setInterval(refresh, 5000);
+
     return () => clearInterval(interval);
   }, [refresh]);
 
@@ -32,10 +63,8 @@ export function useWishes() {
     creatorNametag: string;
     creatorAddress: string;
   }) => {
-    // Send stake UCT to creator's own address (skin in game)
-     // await sendUCT(params.creatorAddress, params.stakeUCT);
-
     const now = Date.now();
+
     const wish: Wish = {
       id: crypto.randomUUID(),
       text: params.text,
@@ -52,8 +81,23 @@ export function useWishes() {
       noFulfilCount: 0,
     };
 
-    addWish(wish);
-    refresh();
+    await supabase.from('wishes').insert({
+      id: wish.id,
+      text: wish.text,
+      category: wish.category,
+      creator_nametag: wish.creatorNametag,
+      creator_address: wish.creatorAddress,
+      staked_uct: wish.stakedUCT,
+      created_at: wish.createdAt,
+      expires_at: wish.expiresAt,
+      duration: wish.duration,
+      status: wish.status,
+      fulfil_count: 0,
+      no_fulfil_count: 0,
+    });
+
+    await refresh();
+
     return wish;
   }, [refresh]);
 
@@ -65,39 +109,40 @@ export function useWishes() {
   }) => {
     const { wish, voteType, voterAddress, voterNametag } = params;
 
-    // Guard: one vote per wallet per wish
-    const alreadyVoted = wish.votes.some(v => v.voterAddress === voterAddress);
-    if (alreadyVoted) throw new Error('You already voted on this wish');
+    if (wish.votes.some(v => v.voterAddress === voterAddress)) {
+      throw new Error('You already voted');
+    }
 
-    // Guard: cannot vote on own wish
-    if (wish.creatorAddress === voterAddress) throw new Error('You cannot vote on your own wish');
+    if (wish.creatorAddress === voterAddress) {
+      throw new Error('Cannot vote your own wish');
+    }
 
-    // Guard: must be active
-    if (wish.status !== 'active') throw new Error('This wish has already expired');
+    await supabase.from('votes').insert({
+      wish_id: wish.id,
+      voter_address: voterAddress,
+      voter_nametag: voterNametag,
+      vote_type: voteType,
+      voted_at: Date.now(),
+    });
 
-    // Send 1 UCT to wish creator as vote stake
-    // await sendUCT(wish.creatorAddress, 1);
+    await supabase
+      .from('wishes')
+      .update({
+        fulfil_count:
+          wish.fulfilCount + (voteType === 'fulfil' ? 1 : 0),
 
-    const updated: Wish = {
-      ...wish,
-      votes: [...wish.votes, { voterAddress, voterNametag, voteType, votedAt: Date.now() }],
-      fulfilCount: wish.fulfilCount + (voteType === 'fulfil' ? 1 : 0),
-      noFulfilCount: wish.noFulfilCount + (voteType === 'nofulfil' ? 1 : 0),
-    };
+        no_fulfil_count:
+          wish.noFulfilCount + (voteType === 'nofulfil' ? 1 : 0),
+      })
+      .eq('id', wish.id);
 
-    updateWish(updated);
-    refresh();
-    return updated;
+    await refresh();
   }, [refresh]);
 
-  const getWishById = useCallback((id: string) => {
-    return wishes.find(w => w.id === id) ?? null;
-  }, [wishes]);
-
-  const hasVoted = useCallback((wishId: string, voterAddress: string) => {
-    const wish = wishes.find(w => w.id === wishId);
-    return wish?.votes.some(v => v.voterAddress === voterAddress) ?? false;
-  }, [wishes]);
-
-  return { wishes, createWish, vote, refresh, getWishById, hasVoted };
+  return {
+    wishes,
+    createWish,
+    vote,
+    refresh,
+  };
 }
