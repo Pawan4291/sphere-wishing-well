@@ -54,115 +54,49 @@ export async function connectWallet(
   identityCache = identity;
   console.log('CONNECTED IDENTITY:', identity);
 
-  // GLOBAL DEBUG: log ALL incoming postMessages so we can see what Sphere sends back
-  if (typeof window !== 'undefined') {
-    window.addEventListener('message', (e) => {
-      console.log('SPHERE MESSAGE RECEIVED:', {
-        origin: e.origin,
-        data: e.data,
-      });
-    });
-  }
-
   return { client: result.client, identity };
 }
 
-export function sendUCT(
+/**
+ * Send UCT using the official Sphere SDK intent API.
+ * This triggers the native Sphere confirmation popup.
+ *
+ * Official API (from sphere-extension CONNECT.md):
+ *   await client.intent('send', { recipient, amount, coinId, memo })
+ *
+ * UCT has 18 decimals — 1 UCT = 1_000_000_000_000_000_000 base units
+ */
+export async function sendUCT(
   recipient: string,
   amountUCT: number,
   memo: string = ''
 ): Promise<void> {
-  return new Promise(async (resolve, reject) => {
-    if (!recipient) {
-      return reject(new Error('Recipient missing'));
-    }
+  if (!clientInstance) {
+    throw new Error('Wallet not connected');
+  }
+  if (!recipient) {
+    throw new Error('Recipient missing');
+  }
 
-    console.log('SENDING UCT:', { recipient, amount: amountUCT, memo });
+  // UCT has 18 decimals
+  const amountRaw = BigInt(Math.round(amountUCT)) * BigInt('1000000000000000000');
 
-    // ATTEMPT 1: Use SDK client.payments.send — this is what triggers the popup
-    if (clientInstance) {
-      try {
-        await clientInstance.payments.send({
-          recipient,
-          coinId: 'UCT',
-          amount: String(amountUCT * 1_000_000_000_000_000_000),
-          memo,
-        });
-        console.log('SDK payments.send success');
-        return resolve();
-      } catch (e: any) {
-        console.warn('SDK payments.send failed:', e?.message);
-        // If it is a permission error specifically, fall through to postMessage
-        if (!e?.message?.includes('Permission denied')) {
-          return reject(new Error(e?.message || 'Payment failed'));
-        }
-      }
-    }
-
-    // ATTEMPT 2: postMessage fallback
-    const target =
-      window.parent !== window
-        ? window.parent
-        : window.opener ?? null;
-
-    if (!target) {
-      return reject(new Error('Sphere wallet window not found'));
-    }
-
-    const timeout = setTimeout(() => {
-      window.removeEventListener('message', handler);
-      reject(new Error('Transfer timed out — please try again'));
-    }, 120_000);
-
-    const handler = (event: MessageEvent) => {
-      console.log('postMessage response:', event.origin, JSON.stringify(event.data));
-
-      const type: string = event.data?.type ?? '';
-
-      if ([
-        'transfer:success',
-        'sphere:transfer:success',
-        'intent:success',
-        'payment:success',
-        'tx:success',
-      ].includes(type)) {
-        clearTimeout(timeout);
-        window.removeEventListener('message', handler);
-        resolve();
-      } else if ([
-        'transfer:rejected',
-        'sphere:transfer:rejected',
-        'intent:rejected',
-        'payment:rejected',
-      ].includes(type)) {
-        clearTimeout(timeout);
-        window.removeEventListener('message', handler);
-        reject(new Error('Transfer cancelled by user'));
-      } else if ([
-        'transfer:error',
-        'sphere:transfer:error',
-        'intent:error',
-        'payment:error',
-      ].includes(type)) {
-        clearTimeout(timeout);
-        window.removeEventListener('message', handler);
-        reject(new Error(event.data?.message || 'Transfer failed'));
-      }
-    };
-
-    window.addEventListener('message', handler);
-
-    target.postMessage(
-      {
-        type: 'transfer',
-        recipient,
-        amount: String(amountUCT),
-        coinId: 'UCT',
-        memo,
-      },
-      SPHERE_WALLET_URL
-    );
+  console.log('SENDING UCT via intent:', {
+    recipient,
+    amount: amountRaw.toString(),
+    coinId: 'UCT',
+    memo,
   });
+
+  // Official SDK method — triggers the Sphere confirmation popup
+  await clientInstance.intent('send', {
+    recipient,
+    amount: amountRaw.toString(),
+    coinId: 'UCT',
+    memo,
+  });
+
+  console.log('UCT intent send success');
 }
 
 export function getClient() {
