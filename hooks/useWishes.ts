@@ -1,5 +1,8 @@
 'use client';
 
+import { addWishScore } from '../lib/wishscore';
+
+
 import { useState, useEffect, useCallback } from 'react';
 import type {
   Wish,
@@ -123,6 +126,14 @@ export function useWishes() {
         no_fulfil_count: 0,
       });
 
+      await addWishScore({
+  address: params.creatorAddress,
+  nametag: params.creatorNametag,
+  points: 15,
+  reason: 'Created wish',
+  wishId: id,
+});
+
       await refresh();
     },
     [refresh]
@@ -179,6 +190,14 @@ export function useWishes() {
         vote_type: voteType,
         voted_at: Date.now(),
       });
+
+      await addWishScore({
+  address: voterAddress,
+  nametag: voterNametag,
+  points: 3,
+  reason: 'Vote cast',
+  wishId: wish.id,
+});
 
       // UPDATE COUNTS
       await supabase
