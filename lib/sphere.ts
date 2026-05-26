@@ -54,75 +54,103 @@ export async function connectWallet(
   identityCache = identity;
   console.log('CONNECTED IDENTITY:', identity);
 
+  // GLOBAL DEBUG: log ALL incoming postMessages so we can see what Sphere sends back
+  if (typeof window !== 'undefined') {
+    window.addEventListener('message', (e) => {
+      console.log('SPHERE MESSAGE RECEIVED:', {
+        origin: e.origin,
+        data: e.data,
+      });
+    });
+  }
+
   return { client: result.client, identity };
 }
 
-/**
- * Send UCT via Sphere postMessage intent.
- * This triggers the native Sphere confirmation popup.
- * recipient: nametag with @ (e.g. '@pawan429')
- */
 export function sendUCT(
   recipient: string,
   amountUCT: number,
   memo: string = ''
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     if (!recipient) {
       return reject(new Error('Recipient missing'));
     }
 
-    // Timeout after 2 minutes in case user ignores the popup
-    const timeout = setTimeout(() => {
-      window.removeEventListener('message', handler);
-      reject(new Error('Transfer timed out — please try again'));
-    }, 120_000);
+    console.log('SENDING UCT:', { recipient, amount: amountUCT, memo });
 
-    const handler = (event: MessageEvent) => {
-      // Only trust messages from Sphere wallet
-      if (event.origin !== SPHERE_WALLET_URL) return;
-
-      const type: string = event.data?.type ?? '';
-
-      if (
-        type === 'transfer:success' ||
-        type === 'sphere:transfer:success'
-      ) {
-        clearTimeout(timeout);
-        window.removeEventListener('message', handler);
-        resolve();
-      } else if (
-        type === 'transfer:error' ||
-        type === 'sphere:transfer:error'
-      ) {
-        clearTimeout(timeout);
-        window.removeEventListener('message', handler);
-        reject(new Error(event.data?.message || 'Transfer failed'));
-      } else if (
-        type === 'transfer:rejected' ||
-        type === 'sphere:transfer:rejected'
-      ) {
-        clearTimeout(timeout);
-        window.removeEventListener('message', handler);
-        reject(new Error('Transfer cancelled by user'));
+    // ATTEMPT 1: Use SDK client.payments.send — this is what triggers the popup
+    if (clientInstance) {
+      try {
+        await clientInstance.payments.send({
+          recipient,
+          coinId: 'UCT',
+          amount: String(amountUCT * 1_000_000_000_000_000_000),
+          memo,
+        });
+        console.log('SDK payments.send success');
+        return resolve();
+      } catch (e: any) {
+        console.warn('SDK payments.send failed:', e?.message);
+        // If it is a permission error specifically, fall through to postMessage
+        if (!e?.message?.includes('Permission denied')) {
+          return reject(new Error(e?.message || 'Payment failed'));
+        }
       }
-    };
+    }
 
-    window.addEventListener('message', handler);
-
-    // Send to Sphere wallet — works whether app is in iframe (parent) or popup (opener)
+    // ATTEMPT 2: postMessage fallback
     const target =
       window.parent !== window
         ? window.parent
         : window.opener ?? null;
 
     if (!target) {
-      clearTimeout(timeout);
-      window.removeEventListener('message', handler);
       return reject(new Error('Sphere wallet window not found'));
     }
 
-    console.log('SENDING UCT:', { recipient, amount: amountUCT, memo });
+    const timeout = setTimeout(() => {
+      window.removeEventListener('message', handler);
+      reject(new Error('Transfer timed out — please try again'));
+    }, 120_000);
+
+    const handler = (event: MessageEvent) => {
+      console.log('postMessage response:', event.origin, JSON.stringify(event.data));
+
+      const type: string = event.data?.type ?? '';
+
+      if ([
+        'transfer:success',
+        'sphere:transfer:success',
+        'intent:success',
+        'payment:success',
+        'tx:success',
+      ].includes(type)) {
+        clearTimeout(timeout);
+        window.removeEventListener('message', handler);
+        resolve();
+      } else if ([
+        'transfer:rejected',
+        'sphere:transfer:rejected',
+        'intent:rejected',
+        'payment:rejected',
+      ].includes(type)) {
+        clearTimeout(timeout);
+        window.removeEventListener('message', handler);
+        reject(new Error('Transfer cancelled by user'));
+      } else if ([
+        'transfer:error',
+        'sphere:transfer:error',
+        'intent:error',
+        'payment:error',
+      ].includes(type)) {
+        clearTimeout(timeout);
+        window.removeEventListener('message', handler);
+        reject(new Error(event.data?.message || 'Transfer failed'));
+      }
+    };
+
+    window.addEventListener('message', handler);
 
     target.postMessage(
       {
