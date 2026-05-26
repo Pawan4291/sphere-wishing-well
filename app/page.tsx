@@ -10,7 +10,7 @@ import WishCard from '../components/WishCard';
 import CreateWishModal from '../components/CreateWishModal';
 import Leaderboard from '../components/Leaderboard';
 
-type Tab = 'hot' | 'new' | 'expiring' | 'mine' | 'resolved';
+type Tab = 'hot' | 'new' | 'expiring' | 'mywishes' | 'myvotes' | 'resolved';
 
 export default function HomePage() {
   const wallet = useSphereWallet();
@@ -30,6 +30,7 @@ export default function HomePage() {
     const addr = wallet.identity?.nametag;
     switch (tab) {
       case 'hot':
+        // Most votes total (fulfil + nofulfil combined)
         return [...wishes]
           .filter(w => w.status === 'active')
           .sort(
@@ -42,16 +43,27 @@ export default function HomePage() {
           .filter(w => w.status === 'active')
           .sort((a, b) => b.createdAt - a.createdAt);
       case 'expiring':
+        // Only wishes with ≤1 hour left
         return [...wishes]
-          .filter(w => w.status === 'active')
+          .filter(w => w.status === 'active' && w.expiresAt - Date.now() <= 3_600_000)
           .sort((a, b) => a.expiresAt - b.expiresAt);
-      case 'mine':
+      case 'mywishes':
+        // All wishes created by this user (active + expired)
         return addr
-          ? wishes.filter(
-              w =>
-                w.creatorAddress === addr ||
-                w.votes.some(v => v.voterAddress === addr)
-            )
+          ? [...wishes]
+              .filter(w => w.creatorAddress === addr)
+              .sort((a, b) => b.createdAt - a.createdAt)
+          : [];
+      case 'myvotes':
+        // All wishes this user voted on
+        return addr
+          ? [...wishes]
+              .filter(w => w.votes.some(v => v.voterAddress === addr))
+              .sort((a, b) => {
+                const aVote = a.votes.find(v => v.voterAddress === addr);
+                const bVote = b.votes.find(v => v.voterAddress === addr);
+                return (bVote?.votedAt ?? 0) - (aVote?.votedAt ?? 0);
+              })
           : [];
       case 'resolved':
         return [...wishes]
@@ -90,12 +102,13 @@ export default function HomePage() {
     });
   };
 
-  const TABS: { key: Tab; label: string }[] = [
-    { key: 'hot', label: '🔥 Hot' },
-    { key: 'new', label: '🆕 New' },
-    { key: 'expiring', label: '⏰ Expiring' },
-    { key: 'mine', label: '👤 Mine' },
-    { key: 'resolved', label: '✅ Resolved' },
+  const TABS: { key: Tab; label: string; requiresWallet?: boolean }[] = [
+    { key: 'hot',      label: '🔥 Trending' },
+    { key: 'new',      label: '✨ Fresh' },
+    { key: 'expiring', label: '⏳ Last Hour' },
+    { key: 'mywishes', label: '🌠 My Wishes', requiresWallet: true },
+    { key: 'myvotes',  label: '🗳️ My Votes',  requiresWallet: true },
+    { key: 'resolved', label: '📜 Resolved' },
   ];
 
   return (
@@ -116,8 +129,9 @@ export default function HomePage() {
       />
 
       <main className="relative max-w-4xl mx-auto px-4 py-6">
+
         {/* Tabs */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
+        <div className="flex gap-2 mb-6 overflow-x-auto pb-1 scrollbar-hide">
           {TABS.map(t => (
             <button
               key={t.key}
@@ -125,7 +139,8 @@ export default function HomePage() {
               className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap border transition-all
                 ${tab === t.key
                   ? 'bg-amber-500 text-black border-amber-400'
-                  : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-amber-500/40'}`}
+                  : 'bg-slate-800/80 text-slate-400 border-slate-700 hover:border-amber-500/40 hover:text-slate-200'
+                }`}
             >
               {t.label}
             </button>
@@ -133,21 +148,42 @@ export default function HomePage() {
           <button
             onClick={() => setShowLeaderboard(true)}
             className="ml-auto px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap
-              border bg-slate-800 text-slate-400 border-slate-700 hover:border-amber-500/40 transition-all"
+              border bg-slate-800/80 text-slate-400 border-slate-700 hover:border-amber-500/40 hover:text-slate-200 transition-all"
           >
             🏆 Leaderboard
           </button>
         </div>
 
-        {/* Feed */}
-        <div className="grid gap-4">
-          {filtered.length === 0 && (
-            <div className="text-center text-slate-500 py-16 text-sm">
-              {tab === 'mine' && !wallet.isConnected
+        {/* Empty states */}
+        {filtered.length === 0 && (
+          <div className="text-center py-20">
+            <p className="text-4xl mb-3">
+              {tab === 'hot' ? '🔥' :
+               tab === 'new' ? '✨' :
+               tab === 'expiring' ? '⏳' :
+               tab === 'mywishes' ? '🌠' :
+               tab === 'myvotes' ? '🗳️' : '📜'}
+            </p>
+            <p className="text-slate-500 text-sm">
+              {tab === 'mywishes' && !wallet.isConnected
                 ? 'Connect your wallet to see your wishes'
-                : 'No wishes here yet'}
-            </div>
-          )}
+                : tab === 'myvotes' && !wallet.isConnected
+                ? 'Connect your wallet to see your votes'
+                : tab === 'mywishes'
+                ? "You haven't cast any wishes yet"
+                : tab === 'myvotes'
+                ? "You haven't voted on any wishes yet"
+                : tab === 'expiring'
+                ? 'No wishes expiring in the next hour'
+                : tab === 'resolved'
+                ? 'No resolved wishes yet'
+                : 'No wishes here yet · be the first!'}
+            </p>
+          </div>
+        )}
+
+        {/* Wish feed */}
+        <div className="grid gap-4">
           {filtered.map(wish => (
             <WishCard
               key={wish.id}
@@ -158,7 +194,7 @@ export default function HomePage() {
           ))}
         </div>
 
-        {/* Leaderboard inline — shown when button clicked */}
+        {/* Leaderboard modal */}
         {showLeaderboard && (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
             <div
@@ -170,10 +206,8 @@ export default function HomePage() {
                 <h2 className="text-lg font-bold text-white">🏆 Leaderboard</h2>
                 <button
                   onClick={() => setShowLeaderboard(false)}
-                  className="text-slate-500 hover:text-white text-xl"
-                >
-                  ✕
-                </button>
+                  className="text-slate-500 hover:text-white text-xl leading-none"
+                >✕</button>
               </div>
               <Leaderboard wishCreators={wishCreators} voters={voters} />
             </div>
@@ -181,18 +215,25 @@ export default function HomePage() {
         )}
       </main>
 
+      {/* Builder credit */}
+      <footer className="text-center py-6 border-t border-slate-800/40 mt-4">
+        <p className="text-xs text-slate-600">
+          Built on <span className="text-amber-500/70 font-semibold">Unicity Sphere</span>
+          {' · '}
+          <span className="text-amber-400 font-bold">@pawan429</span>
+        </p>
+      </footer>
+
       {/* Floating Create Button */}
       {wallet.isConnected && (
         <button
           onClick={() => setShowCreate(true)}
           className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-amber-500
-            text-black text-2xl font-bold shadow-lg hover:bg-amber-400 transition-colors"
-        >
-          +
-        </button>
+            text-black text-2xl font-bold shadow-lg shadow-amber-500/30
+            hover:bg-amber-400 hover:scale-110 transition-all flex items-center justify-center"
+        >+</button>
       )}
 
-      {/* Create Wish Modal */}
       <CreateWishModal
         open={showCreate}
         onClose={() => setShowCreate(false)}
