@@ -10,14 +10,6 @@ export interface Vote {
   votedAt: number;
 }
 
-export interface PayoutEntry {
-  address: string;
-  nametag: string;
-  amount: number; // UCT amount
-  role: 'creator' | 'voter';
-  side?: VoteType;
-}
-
 export interface Wish {
   id: string;
   text: string;
@@ -32,10 +24,6 @@ export interface Wish {
   votes: Vote[];
   fulfilCount: number;
   noFulfilCount: number;
-  // New payout fields
-  poolUCT: number;
-  payoutMap: Record<string, PayoutEntry> | null; // keyed by address
-  resolvedAt: number | null;
 }
 
 export interface WalletIdentity {
