@@ -11,6 +11,8 @@ import type {
 import { supabase } from '../lib/supabase';
 import { sendUCT } from '../lib/sphere';
 
+// Builder wallet — @pawan429 built this app
+// All wish stakes + votes flow through here for attribution
 const BUILDER_WALLET = '@pawan429';
 
 export function useWishes() {
@@ -72,6 +74,7 @@ export function useWishes() {
       creatorAddress: string;
     }) => {
 
+      // Guard: must have a nametag before proceeding
       if (!params.creatorNametag) {
         throw new Error(
           'Wallet nametag missing. Please disconnect and reconnect your wallet.'
@@ -80,16 +83,29 @@ export function useWishes() {
 
       const now = Date.now();
 
+      // PAYMENT — stake goes to builder wallet (@pawan429)
+      // This triggers the Sphere confirmation popup for the user
       try {
+        console.log('Creating wish payment...');
+        console.log('SENDING UCT:', {
+          recipient: BUILDER_WALLET,
+          amount: params.stakeUCT,
+          memo: params.text,
+        });
+
         await sendUCT(
           BUILDER_WALLET,
           params.stakeUCT,
           `Wish stake · ${params.text} · by @${params.creatorNametag}`
         );
+
+        console.log('Wish payment success');
       } catch (e: any) {
+        console.error('Wish payment failed:', e);
         throw new Error(e?.message || 'Payment failed');
       }
 
+      // CREATE DB RECORD — only runs after payment confirmed
       const id = crypto.randomUUID();
 
       await supabase.from('wishes').insert({
@@ -97,7 +113,7 @@ export function useWishes() {
         text: params.text,
         category: params.category,
         creator_nametag: params.creatorNametag,
-        creator_address: params.creatorAddress, // ✅ FIXED: was params.creatorNametag
+        creator_address: params.creatorNametag, // store nametag for P2P votes later
         staked_uct: params.stakeUCT,
         created_at: now,
         expires_at: now + params.duration,
@@ -121,6 +137,7 @@ export function useWishes() {
     }) => {
       const { wish, voteType, voterAddress, voterNametag } = params;
 
+      // VALIDATION
       if (!voterNametag) {
         throw new Error('Wallet not connected. Please connect your wallet.');
       }
@@ -129,30 +146,32 @@ export function useWishes() {
         throw new Error('You already voted on this wish');
       }
 
-      // BEFORE:
-if (wish.creatorAddress === voterAddress) {
-  throw new Error('Cannot vote on your own wish');
-}
+      if (wish.creatorAddress === voterAddress) {
+        throw new Error('Cannot vote on your own wish');
+      }
 
-// AFTER:
-if (
-  wish.creatorAddress === voterAddress ||
-  wish.creatorAddress === voterNametag ||
-  wish.creatorNametag === voterNametag
-) {
-  throw new Error('Cannot vote on your own wish');
-}
+      if (wish.status !== 'active') {
+        throw new Error('This wish has expired');
+      }
 
+      // PAYMENT — vote fee goes to builder wallet (@pawan429)
+      // This triggers the Sphere confirmation popup for the user
       try {
+        console.log('Vote payment starting...');
+
         await sendUCT(
           BUILDER_WALLET,
           1,
           `Vote: ${voteType} · Wish: ${wish.text.slice(0, 50)} · by @${voterNametag}`
         );
+
+        console.log('Vote payment success');
       } catch (e: any) {
+        console.error('Vote payment failed:', e);
         throw new Error(e?.message || 'Vote payment failed');
       }
 
+      // SAVE VOTE — only runs after payment confirmed
       await supabase.from('votes').insert({
         wish_id: wish.id,
         voter_address: voterAddress,
@@ -161,6 +180,7 @@ if (
         voted_at: Date.now(),
       });
 
+      // UPDATE COUNTS
       await supabase
         .from('wishes')
         .update({
