@@ -89,9 +89,10 @@ export function useWishes() {
         console.log('Creating wish payment...');
 
         await sendUCT(
-          BUILDER_WALLET,
-          params.stakeUCT
-        );
+  "@pawan429",
+  params.stakeUCT,
+  params.text
+);
 
         console.log('Wish payment success');
 

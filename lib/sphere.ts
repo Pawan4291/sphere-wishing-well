@@ -1,26 +1,31 @@
 'use client';
 
-export const BUILDER_NAMETAG = '@pawan429';
-
 import type { WalletIdentity } from '../types/wish';
 import { SPHERE_WALLET_URL } from './constants';
 
 let clientInstance: any = null;
+
 let identityCache: WalletIdentity | null = null;
 
 export async function connectWallet(
   silent = false
-): Promise<{ client: any; identity: WalletIdentity }> {
+): Promise<{
+  client: any;
+  identity: WalletIdentity;
+}> {
 
-  const { autoConnect } = await import(
-    '@unicitylabs/sphere-sdk/connect/browser'
-  );
+  const { autoConnect } =
+    await import(
+      '@unicitylabs/sphere-sdk/connect/browser'
+    );
 
   const result = await autoConnect({
     dapp: {
       name: 'Sphere Wishing Well',
+
       description:
-        'Cast wishes, vote with your wallet, see community predictions come true.',
+        'Community prediction market built on Sphere',
+
       url:
         typeof window !== 'undefined'
           ? window.location.origin
@@ -34,65 +39,90 @@ export async function connectWallet(
 
   clientInstance = result.client;
 
-  const raw: any =
-    result.connection?.identity ?? {};
-
-  console.log(
-    'IDENTITY RAW from connection:',
-    raw
-  );
+  const raw =
+    result?.connection?.identity ?? {};
 
   const identity: WalletIdentity = {
-    nametag: raw?.nametag || '',
-    directAddress: raw?.directAddress || '',
-    l1Address: raw?.l1Address || '',
-    chainPubkey: raw?.chainPubkey || '',
+    nametag:
+      raw?.nametag || '',
+
+    directAddress:
+      raw?.directAddress || '',
+
+    l1Address:
+      raw?.l1Address || '',
+
+    chainPubkey:
+      raw?.chainPubkey || '',
   };
 
   identityCache = identity;
 
-  console.log('FINAL IDENTITY:', identity);
+  console.log(
+    'CONNECTED IDENTITY:',
+    identity
+  );
 
   return {
-    client: result.client,
+    client: clientInstance,
     identity,
   };
 }
 
 export async function sendUCT(
-  recipientAddress: string,
-  amountUCT: number
-): Promise<void> {
+  recipient: string,
+  amount: number,
+  memo?: string
+) {
 
   if (!clientInstance) {
-    throw new Error('Wallet not connected');
+    await connectWallet(false);
   }
 
-  if (!recipientAddress) {
-    throw new Error('Recipient missing');
+  try {
+
+    console.log('SENDING UCT:', {
+      recipient,
+      amount,
+      memo,
+    });
+
+    // CURRENT WORKING METHOD
+    const response =
+      await clientInstance.request({
+        method: 'transfer',
+
+        params: {
+          recipient,
+
+          amount:
+            (
+              amount * 1000000
+            ).toString(),
+
+          coinId: 'UCT',
+
+          memo:
+            memo || '',
+        },
+      });
+
+    console.log(
+      'TRANSFER SUCCESS:',
+      response
+    );
+
+    return response;
+
+  } catch (e) {
+
+    console.error(
+      'TRANSFER FAILED:',
+      e
+    );
+
+    throw e;
   }
-
-  // SDK expects string base units
-  const amount = (
-    amountUCT * 1_000_000
-  ).toString();
-
-  const recipient =
-    recipientAddress.startsWith('@')
-      ? recipientAddress
-      : `@${recipientAddress}`;
-
-  console.log('SENDING UCT:', {
-    recipient,
-    amount,
-  });
-
-  // REAL SDK 0.7.2 METHOD
-  await clientInstance.payments.send({
-    recipient,
-    coinId: 'UCT',
-    amount,
-  });
 }
 
 export function getClient() {
@@ -106,7 +136,10 @@ export function getCachedIdentity() {
 export function onIncomingTransfer(
   cb: (data: any) => void
 ) {
-  if (!clientInstance) return;
+
+  if (!clientInstance) {
+    return;
+  }
 
   clientInstance.on(
     'transfer:incoming',
@@ -115,10 +148,24 @@ export function onIncomingTransfer(
 }
 
 export async function disconnectWallet() {
-  if (clientInstance) {
+
+  if (!clientInstance) {
+    return;
+  }
+
+  try {
+
     await clientInstance.disconnect();
 
-    clientInstance = null;
-    identityCache = null;
+  } catch (e) {
+
+    console.error(
+      'Disconnect failed:',
+      e
+    );
   }
+
+  clientInstance = null;
+
+  identityCache = null;
 }
