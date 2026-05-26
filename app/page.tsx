@@ -10,9 +10,6 @@ import WishCard from '../components/WishCard';
 import CreateWishModal from '../components/CreateWishModal';
 import Leaderboard from '../components/Leaderboard';
 
-// ✅ REMOVED: bad import { BUILDER_NAMETAG } from '../lib/sphere'
-// BUILDER_NAMETAG is only used internally in useWishes.ts — not needed here
-
 type Tab = 'hot' | 'new' | 'expiring' | 'mine' | 'resolved';
 
 export default function HomePage() {
@@ -58,11 +55,7 @@ export default function HomePage() {
           : [];
       case 'resolved':
         return [...wishes]
-          .filter(
-            w =>
-              w.status === 'fulfilled' ||
-              w.status === 'unfulfilled'
-          )
+          .filter(w => w.status === 'fulfilled' || w.status === 'unfulfilled')
           .sort((a, b) => b.expiresAt - a.expiresAt);
       default:
         return wishes;
@@ -109,11 +102,7 @@ export default function HomePage() {
     <div className="min-h-screen bg-slate-950 text-white">
       {/* Ambient background */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div
-          className="absolute top-1/4 left-1/2 -translate-x-1/2
-            w-[600px] h-[600px] rounded-full
-            bg-amber-500/3 blur-[120px]"
-        />
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full bg-amber-500/3 blur-[120px]" />
       </div>
 
       <Header
@@ -144,7 +133,7 @@ export default function HomePage() {
           <button
             onClick={() => setShowLeaderboard(true)}
             className="ml-auto px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap
-              border bg-slate-800 text-slate-400 border-slate-700 hover:border-amber-500/40"
+              border bg-slate-800 text-slate-400 border-slate-700 hover:border-amber-500/40 transition-all"
           >
             🏆 Leaderboard
           </button>
@@ -168,34 +157,47 @@ export default function HomePage() {
             />
           ))}
         </div>
+
+        {/* Leaderboard inline — shown when button clicked */}
+        {showLeaderboard && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <div
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+              onClick={() => setShowLeaderboard(false)}
+            />
+            <div className="relative w-full max-w-md">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-bold text-white">🏆 Leaderboard</h2>
+                <button
+                  onClick={() => setShowLeaderboard(false)}
+                  className="text-slate-500 hover:text-white text-xl"
+                >
+                  ✕
+                </button>
+              </div>
+              <Leaderboard wishCreators={wishCreators} voters={voters} />
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Floating Create Button */}
       {wallet.isConnected && (
         <button
           onClick={() => setShowCreate(true)}
-          className="fixed bottom-6 right-6 z-40
-            w-14 h-14 rounded-full bg-amber-500
-            text-black text-2xl font-bold shadow-lg
-            hover:bg-amber-400 transition-colors"
+          className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-amber-500
+            text-black text-2xl font-bold shadow-lg hover:bg-amber-400 transition-colors"
         >
           +
         </button>
       )}
 
-      {/* Modals */}
+      {/* Create Wish Modal */}
       <CreateWishModal
         open={showCreate}
         onClose={() => setShowCreate(false)}
         onSubmit={handleCreateWish}
         creatorNametag={wallet.identity?.nametag ?? ''}
-      />
-
-      <Leaderboard
-        open={showLeaderboard}
-        onClose={() => setShowLeaderboard(false)}
-        wishCreators={wishCreators}
-        voters={voters}
       />
     </div>
   );
