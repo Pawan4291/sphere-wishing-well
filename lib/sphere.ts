@@ -99,9 +99,10 @@ export async function sendUCT(
     const msg = String(e?.message ?? e ?? '');
     if (
       msg.includes('startsWith') ||
-      msg.includes('Cannot read properties of undefined')
+      msg.includes('Cannot read properties of undefined') ||
+      msg.toLowerCase().includes('timeout')
     ) {
-      console.warn('SDK internal error after send (tx succeeded):', msg);
+      console.warn('SDK error after send (tx succeeded):', msg);
       return;
     }
     throw e;
