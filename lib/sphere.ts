@@ -2,7 +2,7 @@
 
 import type { WalletIdentity } from '../types/wish';
 import { SPHERE_WALLET_URL } from './constants';
-
+export const BUILDER_NAMETAG = '@pawan429';
 let clientInstance: any = null;
 
 let identityCache: WalletIdentity | null = null;
