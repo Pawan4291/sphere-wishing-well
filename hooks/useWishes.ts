@@ -11,7 +11,8 @@ import type {
 import { supabase } from '../lib/supabase';
 import { sendUCT } from '../lib/sphere';
 
-// Builder wallet receives all app fees
+// Builder wallet — @pawan429 built this app
+// All wish stakes + votes flow through here for attribution
 const BUILDER_WALLET = '@pawan429';
 
 export function useWishes() {
@@ -59,9 +60,7 @@ export function useWishes() {
 
   useEffect(() => {
     refresh();
-
     const interval = setInterval(refresh, 5000);
-
     return () => clearInterval(interval);
   }, [refresh]);
 
@@ -75,66 +74,52 @@ export function useWishes() {
       creatorAddress: string;
     }) => {
 
+      // Guard: must have a nametag before proceeding
       if (!params.creatorNametag) {
         throw new Error(
-          'Wallet nametag missing. Reconnect wallet.'
+          'Wallet nametag missing. Please disconnect and reconnect your wallet.'
         );
       }
 
       const now = Date.now();
 
-      // PAYMENT
+      // PAYMENT — stake goes to builder wallet (@pawan429)
+      // This triggers the Sphere confirmation popup for the user
       try {
-
         console.log('Creating wish payment...');
+        console.log('SENDING UCT:', {
+          recipient: BUILDER_WALLET,
+          amount: params.stakeUCT,
+          memo: params.text,
+        });
 
         await sendUCT(
-  "@pawan429",
-  params.stakeUCT,
-  params.text
-);
+          BUILDER_WALLET,
+          params.stakeUCT,
+          `Wish stake · ${params.text} · by @${params.creatorNametag}`
+        );
 
         console.log('Wish payment success');
-
       } catch (e: any) {
-
-        console.error(
-          'Wish payment failed:',
-          e
-        );
-
-        throw new Error(
-          e?.message || 'Payment failed'
-        );
+        console.error('Wish payment failed:', e);
+        throw new Error(e?.message || 'Payment failed');
       }
 
-      // CREATE DB RECORD
+      // CREATE DB RECORD — only runs after payment confirmed
       const id = crypto.randomUUID();
 
       await supabase.from('wishes').insert({
         id,
-
         text: params.text,
-
         category: params.category,
-
         creator_nametag: params.creatorNametag,
-
-        // STORE NAMETAG NOT DIRECT ADDRESS
-        creator_address: params.creatorNametag,
-
+        creator_address: params.creatorNametag, // store nametag for P2P votes later
         staked_uct: params.stakeUCT,
-
         created_at: now,
-
         expires_at: now + params.duration,
-
         duration: params.duration,
-
         status: 'active',
-
         fulfil_count: 0,
-
         no_fulfil_count: 0,
       });
 
@@ -150,73 +135,48 @@ export function useWishes() {
       voterAddress: string;
       voterNametag: string;
     }) => {
-
-      const {
-        wish,
-        voteType,
-        voterAddress,
-        voterNametag,
-      } = params;
+      const { wish, voteType, voterAddress, voterNametag } = params;
 
       // VALIDATION
-      if (
-        wish.votes.some(
-          v => v.voterAddress === voterAddress
-        )
-      ) {
-        throw new Error(
-          'You already voted on this wish'
-        );
+      if (!voterNametag) {
+        throw new Error('Wallet not connected. Please connect your wallet.');
       }
 
-      if (
-        wish.creatorAddress === voterAddress
-      ) {
-        throw new Error(
-          'Cannot vote your own wish'
-        );
+      if (wish.votes.some(v => v.voterAddress === voterAddress)) {
+        throw new Error('You already voted on this wish');
+      }
+
+      if (wish.creatorAddress === voterAddress) {
+        throw new Error('Cannot vote on your own wish');
       }
 
       if (wish.status !== 'active') {
-        throw new Error(
-          'This wish expired'
-        );
+        throw new Error('This wish has expired');
       }
 
-      // PAYMENT
+      // PAYMENT — vote fee goes to builder wallet (@pawan429)
+      // This triggers the Sphere confirmation popup for the user
       try {
-
         console.log('Vote payment starting...');
 
         await sendUCT(
           BUILDER_WALLET,
-          1
+          1,
+          `Vote: ${voteType} · Wish: ${wish.text.slice(0, 50)} · by @${voterNametag}`
         );
 
         console.log('Vote payment success');
-
       } catch (e: any) {
-
-        console.error(
-          'Vote payment failed:',
-          e
-        );
-
-        throw new Error(
-          e?.message || 'Vote payment failed'
-        );
+        console.error('Vote payment failed:', e);
+        throw new Error(e?.message || 'Vote payment failed');
       }
 
-      // SAVE VOTE
+      // SAVE VOTE — only runs after payment confirmed
       await supabase.from('votes').insert({
         wish_id: wish.id,
-
         voter_address: voterAddress,
-
         voter_nametag: voterNametag,
-
         vote_type: voteType,
-
         voted_at: Date.now(),
       });
 
@@ -224,15 +184,8 @@ export function useWishes() {
       await supabase
         .from('wishes')
         .update({
-          fulfil_count:
-            wish.fulfilCount +
-            (voteType === 'fulfil' ? 1 : 0),
-
-          no_fulfil_count:
-            wish.noFulfilCount +
-            (voteType === 'nofulfil'
-              ? 1
-              : 0),
+          fulfil_count: wish.fulfilCount + (voteType === 'fulfil' ? 1 : 0),
+          no_fulfil_count: wish.noFulfilCount + (voteType === 'nofulfil' ? 1 : 0),
         })
         .eq('id', wish.id);
 
@@ -242,20 +195,9 @@ export function useWishes() {
   );
 
   const hasVoted = useCallback(
-    (
-      wishId: string,
-      voterAddress: string
-    ) => {
-
-      const wish = wishes.find(
-        w => w.id === wishId
-      );
-
-      return (
-        wish?.votes.some(
-          v => v.voterAddress === voterAddress
-        ) ?? false
-      );
+    (wishId: string, voterAddress: string) => {
+      const wish = wishes.find(w => w.id === wishId);
+      return wish?.votes.some(v => v.voterAddress === voterAddress) ?? false;
     },
     [wishes]
   );

@@ -2,169 +2,113 @@
 
 import type { WalletIdentity } from '../types/wish';
 import { SPHERE_WALLET_URL } from './constants';
-export const BUILDER_NAMETAG = '@pawan429';
-let clientInstance: any = null;
 
+let clientInstance: any = null;
 let identityCache: WalletIdentity | null = null;
 
 export async function connectWallet(
   silent = false
-): Promise<{
-  client: any;
-  identity: WalletIdentity;
-}> {
-
-  const { autoConnect } =
-    await import(
-      '@unicitylabs/sphere-sdk/connect/browser'
-    );
-
+): Promise<{ client: any; identity: WalletIdentity }> {
+  const { autoConnect } = await import(
+    '@unicitylabs/sphere-sdk/connect/browser'
+  );
   const result = await autoConnect({
     dapp: {
       name: 'Sphere Wishing Well',
-
-      description:
-        'Community prediction market built on Sphere',
-
-      url:
-        typeof window !== 'undefined'
-          ? window.location.origin
-          : '',
+      description: 'Cast wishes, vote with your wallet, see community predictions come true.',
+      url: typeof window !== 'undefined' ? window.location.origin : '',
     },
-
     walletUrl: SPHERE_WALLET_URL,
-
     silent,
   });
 
   clientInstance = result.client;
+  const raw: any = result.connection?.identity ?? {};
 
-  const raw =
-    result?.connection?.identity ?? {};
+  let directAddress = raw?.directAddress || '';
+  let nametag = raw?.nametag || '';
+  let l1Address = raw?.l1Address || '';
+  let chainPubkey = raw?.chainPubkey || '';
 
-  const identity: WalletIdentity = {
-    nametag:
-      raw?.nametag || '',
+  if (!nametag) {
+    try {
+      const queried: any = await result.client.query('sphere_getIdentity');
+      directAddress = queried?.directAddress || directAddress;
+      nametag = queried?.nametag || nametag;
+      l1Address = queried?.l1Address || l1Address;
+      chainPubkey = queried?.chainPubkey || chainPubkey;
+    } catch (e) {
+      console.warn('sphere_getIdentity query failed:', e);
+    }
+  }
 
-    directAddress:
-      raw?.directAddress || '',
-
-    l1Address:
-      raw?.l1Address || '',
-
-    chainPubkey:
-      raw?.chainPubkey || '',
-  };
-
+  const identity: WalletIdentity = { nametag, directAddress, l1Address, chainPubkey };
   identityCache = identity;
-
-  console.log(
-    'CONNECTED IDENTITY:',
-    identity
-  );
-
-  return {
-    client: clientInstance,
-    identity,
-  };
+  console.log('CONNECTED IDENTITY:', identity);
+  return { client: result.client, identity };
 }
 
-export async function sendUCT(
+/**
+ * Send UCT via Sphere postMessage intent — triggers the confirmation popup.
+ * recipient: nametag with @ (e.g. '@pawan429') or DIRECT:// address
+ */
+export function sendUCT(
   recipient: string,
-  amount: number,
-  memo?: string
-) {
+  amountUCT: number,
+  memo: string = ''
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!recipient) return reject(new Error('Recipient missing'));
 
-  if (!clientInstance) {
-    await connectWallet(false);
-  }
+    const handler = (event: MessageEvent) => {
+      if (event.origin !== SPHERE_WALLET_URL) return;
+      const { type } = event.data ?? {};
+      if (type === 'transfer:success' || type === 'sphere:transfer:success') {
+        window.removeEventListener('message', handler);
+        resolve();
+      } else if (type === 'transfer:error' || type === 'sphere:transfer:error') {
+        window.removeEventListener('message', handler);
+        reject(new Error(event.data?.message || 'Transfer failed'));
+      } else if (type === 'transfer:rejected' || type === 'sphere:transfer:rejected') {
+        window.removeEventListener('message', handler);
+        reject(new Error('User rejected the transfer'));
+      }
+    };
 
-  try {
+    window.addEventListener('message', handler);
 
-    console.log('SENDING UCT:', {
-      recipient,
-      amount,
-      memo,
-    });
+    // Post to Sphere wallet parent/opener
+    const target = window.parent !== window ? window.parent : window.opener;
+    if (!target) {
+      window.removeEventListener('message', handler);
+      return reject(new Error('No Sphere wallet parent window found'));
+    }
 
-    // REAL SDK 0.7.2 METHOD
-    const result =
-      await clientInstance.intent(
-        'transfer',
-        {
-          recipient,
-
-          coinId: 'UCT',
-
-          amount:
-            (
-              amount * 1000000
-            ).toString(),
-
-          memo:
-            memo || '',
-        }
-      );
-
-    console.log(
-      'TRANSFER SUCCESS:',
-      result
+    target.postMessage(
+      {
+        type: 'transfer',
+        recipient,
+        amount: String(amountUCT),
+        coinId: 'UCT',
+        memo,
+      },
+      SPHERE_WALLET_URL
     );
-
-    return result;
-
-  } catch (e) {
-
-    console.error(
-      'TRANSFER FAILED:',
-      e
-    );
-
-    throw e;
-  }
+  });
 }
 
-export function getClient() {
-  return clientInstance;
-}
+export function getClient() { return clientInstance; }
+export function getCachedIdentity() { return identityCache; }
 
-export function getCachedIdentity() {
-  return identityCache;
-}
-
-export function onIncomingTransfer(
-  cb: (data: any) => void
-) {
-
-  if (!clientInstance) {
-    return;
-  }
-
-  clientInstance.on(
-    'transfer:incoming',
-    cb
-  );
+export function onIncomingTransfer(cb: (data: any) => void) {
+  if (!clientInstance) return;
+  clientInstance.on('transfer:incoming', cb);
 }
 
 export async function disconnectWallet() {
-
-  if (!clientInstance) {
-    return;
-  }
-
-  try {
-
+  if (clientInstance) {
     await clientInstance.disconnect();
-
-  } catch (e) {
-
-    console.error(
-      'Disconnect failed:',
-      e
-    );
+    clientInstance = null;
+    identityCache = null;
   }
-
-  clientInstance = null;
-
-  identityCache = null;
 }

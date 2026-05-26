@@ -1,5 +1,8 @@
 import type { WishDuration, WishCategory } from '../types/wish';
 
+// ... existing code ...
+export const BUILDER_WALLET = '@pawan429'; // Built by Pawan4291 — for airdrops/rewards
+export const PLATFORM_FEE_UCT = 0; // Set to 1 if you want a platform fee per action
 export const UCT_DECIMALS = 1_000_000_000_000_000_000n;
 
 export const DURATIONS: { label: string; value: WishDuration; short: string }[] = [
