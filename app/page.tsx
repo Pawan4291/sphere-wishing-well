@@ -58,44 +58,33 @@ export default function HomePage() {
     }
   }, [wishes, tab, wallet.identity]);
 
-  // page.tsx is the only place that knows directAddress
-  // it adds creatorAddress/creatorNametag before calling createWish
   const handleCreateWish = async (params: {
-  text: string;
-  category: WishCategory;
-  duration: WishDuration;
-  stakeUCT: number;
-}) => {
-  if (!wallet.identity?.directAddress) {
-    throw new Error('Connect wallet first');
-  }
-  try {
+    text: string;
+    category: WishCategory;
+    duration: WishDuration;
+    stakeUCT: number;
+  }) => {
+    if (!wallet.identity?.directAddress) {
+      throw new Error('Connect wallet first');
+    }
     await createWish({
       ...params,
       creatorNametag: wallet.identity.nametag || 'anonymous',
       creatorAddress: wallet.identity.directAddress,
     });
-  } catch (e: any) {
-    // Rethrow so modal shows the error message
-    throw e;
-  }
-};
+  };
 
   const handleVote = async (wish: Wish, voteType: VoteType) => {
-  if (!wallet.identity?.directAddress) {
-    throw new Error('Connect wallet first');
-  }
-  try {
+    if (!wallet.identity?.directAddress) {
+      throw new Error('Connect wallet first');
+    }
     await vote({
       wish,
       voteType,
       voterAddress: wallet.identity.directAddress,
       voterNametag: wallet.identity.nametag || 'anonymous',
     });
-  } catch (e: any) {
-    throw e;
-  }
-};
+  };
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'hot',      label: '🔥 Hot' },
@@ -123,7 +112,6 @@ export default function HomePage() {
 
       <main className="relative max-w-4xl mx-auto px-4 py-6">
 
-        {/* Builder credit — your @pawan429 identity is always visible */}
         <div className="mb-4 flex items-center justify-center">
           <div className="px-4 py-2 rounded-full bg-slate-800/60 border border-slate-700/40 text-xs text-slate-500">
             Built by{' '}
@@ -132,7 +120,6 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Hero */}
         <div className="mb-6 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 mb-3">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
@@ -144,7 +131,6 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-1 mb-5 bg-slate-900/60 rounded-2xl p-1 border border-slate-800/60 overflow-x-auto">
           {TABS.map(t => (
             <button
