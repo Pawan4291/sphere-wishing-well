@@ -77,36 +77,25 @@ export async function sendUCT(
     ? recipientNametag
     : `@${recipientNametag}`;
 
-  // ✅ Wait for wallet assets to load before calling intent
-  // The SDK crashes if tokens haven't synced yet
-  const waitForAssets = async (): Promise<void> => {
-    const maxAttempts = 10;
-    for (let i = 0; i < maxAttempts; i++) {
-      try {
-        const assets = await clientInstance.query('sphere_getAssets');
-        const uct = Array.isArray(assets)
-          ? assets.find((a: any) => a.coinId === 'UCT' || a.symbol === 'UCT')
-          : null;
-        if (uct) {
-          console.log('UCT asset ready:', uct);
-          return;
-        }
-      } catch (e) {
-        // ignore query errors, keep waiting
-      }
-      console.log(`Waiting for UCT assets... attempt ${i + 1}/${maxAttempts}`);
-      await new Promise(r => setTimeout(r, 1000));
+  // ✅ Look up the REAL coinId hash from the wallet's asset list
+  let realCoinId = 'UCT'; // fallback
+  try {
+    const assets = await clientInstance.query('sphere_getAssets');
+    const uct = Array.isArray(assets)
+      ? assets.find((a: any) => a.symbol === 'UCT')
+      : null;
+    if (uct?.coinId) {
+      realCoinId = uct.coinId; // the real hash e.g. '455ad872...'
+      console.log('Using real UCT coinId:', realCoinId);
     }
-    // Proceed anyway after timeout — let the intent try
-    console.warn('UCT asset not confirmed, proceeding with intent anyway');
-  };
+  } catch (e) {
+    console.warn('Could not fetch assets, using fallback coinId');
+  }
 
-  await waitForAssets();
-
-  console.log('SENDING UCT:', { recipient, amount: amountUCT });
+  console.log('SENDING UCT:', { recipient, amount: amountUCT, coinId: realCoinId });
 
   await clientInstance.intent('send', {
-    coinId: 'UCT',
+    coinId: realCoinId,  // ✅ use the real hash, not 'UCT'
     recipient,
     amount: amountUCT,
   });
