@@ -1,5 +1,6 @@
 'use client';
 
+
 import { useMemo } from 'react';
 import type { Wish, LeaderboardEntry } from '../types/wish';
 
@@ -30,5 +31,16 @@ export function useLeaderboard(wishes: Wish[]) {
     return Array.from(map.values()).sort((a, b) => b.count - a.count).slice(0, 10);
   }, [wishes]);
 
-  return { wishCreators, voters };
+
+  const topWishScore: LeaderboardEntry[] = [];
+  return {
+
+  wishCreators,
+
+  voters,
+
+  // NEW
+  wishScoreUsers: topWishScore,
+
+};
 }

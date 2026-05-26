@@ -37,7 +37,8 @@ export default function HomePage() {
 
   const {
     wishCreators,
-    voters
+    voters,
+    wishScoreUsers
   } = useLeaderboard(wishes);
 
   const [tab, setTab] =
@@ -655,11 +656,10 @@ export default function HomePage() {
               </div>
 
               <Leaderboard
-                wishCreators={
-                  wishCreators
-                }
-                voters={voters}
-              />
+  wishCreators={wishCreators}
+  voters={voters}
+  wishScoreUsers={wishScoreUsers}
+/>
 
             </div>
 
