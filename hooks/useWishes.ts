@@ -1,22 +1,29 @@
 'use client';
 
-import { addWishScore } from '../lib/wishscore';
-
-
 import { useState, useEffect, useCallback } from 'react';
-import type {
-  Wish,
-  WishCategory,
-  WishDuration,
-  VoteType,
-} from '../types/wish';
-
+import type { Wish, WishCategory, WishDuration, VoteType } from '../types/wish';
 import { supabase } from '../lib/supabase';
 import { sendUCT } from '../lib/sphere';
 
-// Builder wallet — @pawan429 built this app
-// All wish stakes + votes flow through here for attribution
-const BUILDER_WALLET = '@pawan429';
+// ─── WishScore helper ────────────────────────────────────────────────────────
+async function upsertWishScore(address: string, nametag: string, delta: number) {
+  const { data } = await supabase
+    .from('users')
+    .select('wishscore')
+    .eq('address', address)
+    .maybeSingle();
+
+  if (data) {
+    await supabase
+      .from('users')
+      .update({ wishscore: (data.wishscore || 0) + delta, nametag })
+      .eq('address', address);
+  } else {
+    await supabase
+      .from('users')
+      .insert({ address, nametag, wishscore: delta });
+  }
+}
 
 export function useWishes() {
   const [wishes, setWishes] = useState<Wish[]>([]);
@@ -30,84 +37,6 @@ export function useWishes() {
     const { data: votesData } = await supabase
       .from('votes')
       .select('*');
-
-const now = Date.now();
-
-// AUTO RESOLVE EXPIRED WISHES
-for (const w of wishesData ?? []) {
-
-  if (
-    w.status === 'active' &&
-    w.expires_at <= now
-  ) {
-
-    let newStatus =
-      'unfulfilled';
-
-    if (
-      w.fulfil_count >
-      w.no_fulfil_count
-    ) {
-
-      newStatus =
-        'fulfilled';
-    }
-
-    await supabase
-      .from('wishes')
-      .update({
-        status: newStatus,
-      })
-      .eq('id', w.id);
-
-const wishVotes =
-  (votesData ?? []).filter(
-    (v: any) => v.wish_id === w.id
-  );
-
-// TIE
-if (
-  w.fulfil_count ===
-  w.no_fulfil_count
-) {
-
-  for (const v of wishVotes) {
-
-    await addWishScore({
-      address: v.voter_address,
-      nametag: v.voter_nametag,
-      points: 2,
-      reason: 'Tie vote',
-      wishId: w.id,
-    });
-  }
-
-} else {
-
-  const winningSide =
-    w.fulfil_count >
-    w.no_fulfil_count
-      ? 'fulfil'
-      : 'nofulfil';
-
-  for (const v of wishVotes) {
-
-    if (v.vote_type === winningSide) {
-
-      await addWishScore({
-        address: v.voter_address,
-        nametag: v.voter_nametag,
-        points: 12,
-        reason: 'Correct prediction',
-        wishId: w.id,
-      });
-    }
-  }
-}
-
-  }
-}
-
 
     const mapped: Wish[] = (wishesData ?? []).map((w: any) => {
       const votes = (votesData ?? [])
@@ -154,47 +83,22 @@ if (
       creatorNametag: string;
       creatorAddress: string;
     }) => {
-
-      // Guard: must have a nametag before proceeding
-      if (!params.creatorNametag) {
+      if (!params.creatorAddress || params.creatorAddress.trim() === '') {
         throw new Error(
-          'Wallet nametag missing. Please disconnect and reconnect your wallet.'
+          'Your wallet address is missing. Please disconnect and reconnect your wallet.'
         );
       }
 
       const now = Date.now();
+      await sendUCT(params.creatorAddress, params.stakeUCT);
 
-      // PAYMENT — stake goes to builder wallet (@pawan429)
-      // This triggers the Sphere confirmation popup for the user
-      try {
-        console.log('Creating wish payment...');
-        console.log('SENDING UCT:', {
-          recipient: BUILDER_WALLET,
-          amount: params.stakeUCT,
-          memo: params.text,
-        });
-
-        await sendUCT(
-          BUILDER_WALLET,
-          params.stakeUCT,
-          `Wish stake · ${params.text} · by @${params.creatorNametag}`
-        );
-
-        console.log('Wish payment success');
-      } catch (e: any) {
-        console.error('Wish payment failed:', e);
-        throw new Error(e?.message || 'Payment failed');
-      }
-
-      // CREATE DB RECORD — only runs after payment confirmed
       const id = crypto.randomUUID();
-
       await supabase.from('wishes').insert({
         id,
         text: params.text,
         category: params.category,
         creator_nametag: params.creatorNametag,
-        creator_address: params.creatorNametag, // store nametag for P2P votes later
+        creator_address: params.creatorAddress,
         staked_uct: params.stakeUCT,
         created_at: now,
         expires_at: now + params.duration,
@@ -204,13 +108,8 @@ if (
         no_fulfil_count: 0,
       });
 
-      await addWishScore({
-  address: params.creatorAddress,
-  nametag: params.creatorNametag,
-  points: 15,
-  reason: 'Created wish',
-  wishId: id,
-});
+      // ✅ FIX: Award WishScore for creating a wish (+10 points)
+      await upsertWishScore(params.creatorAddress, params.creatorNametag, 10);
 
       await refresh();
     },
@@ -226,9 +125,15 @@ if (
     }) => {
       const { wish, voteType, voterAddress, voterNametag } = params;
 
-      // VALIDATION
-      if (!voterNametag) {
-        throw new Error('Wallet not connected. Please connect your wallet.');
+      if (!voterAddress || voterAddress.trim() === '') {
+        throw new Error('Your wallet address is missing. Please reconnect your wallet.');
+      }
+
+      if (!wish.creatorAddress || wish.creatorAddress.trim() === '') {
+        throw new Error(
+          'This wish has no valid creator address and cannot receive UCT. ' +
+          'It may have been created before wallet addresses were stored correctly.'
+        );
       }
 
       if (wish.votes.some(v => v.voterAddress === voterAddress)) {
@@ -243,24 +148,8 @@ if (
         throw new Error('This wish has expired');
       }
 
-      // PAYMENT — vote fee goes to builder wallet (@pawan429)
-      // This triggers the Sphere confirmation popup for the user
-      try {
-        console.log('Vote payment starting...');
+      await sendUCT(wish.creatorAddress, 1);
 
-        await sendUCT(
-          BUILDER_WALLET,
-          1,
-          `Vote: ${voteType} · Wish: ${wish.text.slice(0, 50)} · by @${voterNametag}`
-        );
-
-        console.log('Vote payment success');
-      } catch (e: any) {
-        console.error('Vote payment failed:', e);
-        throw new Error(e?.message || 'Vote payment failed');
-      }
-
-      // SAVE VOTE — only runs after payment confirmed
       await supabase.from('votes').insert({
         wish_id: wish.id,
         voter_address: voterAddress,
@@ -269,15 +158,6 @@ if (
         voted_at: Date.now(),
       });
 
-      await addWishScore({
-  address: voterAddress,
-  nametag: voterNametag,
-  points: 3,
-  reason: 'Vote cast',
-  wishId: wish.id,
-});
-
-      // UPDATE COUNTS
       await supabase
         .from('wishes')
         .update({
@@ -286,9 +166,8 @@ if (
         })
         .eq('id', wish.id);
 
-
-
-        
+      // ✅ FIX: Award WishScore for voting (+5 points)
+      await upsertWishScore(voterAddress, voterNametag, 5);
 
       await refresh();
     },
@@ -303,11 +182,5 @@ if (
     [wishes]
   );
 
-  return {
-    wishes,
-    createWish,
-    vote,
-    refresh,
-    hasVoted,
-  };
+  return { wishes, createWish, vote, refresh, hasVoted };
 }

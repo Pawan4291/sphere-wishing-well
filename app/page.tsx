@@ -1,840 +1,290 @@
 'use client';
 
-import WishScoreHistory
-from '../components/WishScoreHistory';
-
-import { useWishScoreLeaderboard }
-from '../hooks/useWishScoreLeaderboard';
-
 import { useState, useMemo } from 'react';
-import type {
-  Wish,
-  VoteType,
-  WishCategory,
-  WishDuration
-} from '../types/wish';
-
+import type { Wish, VoteType, WishCategory, WishDuration } from '../types/wish';
 import { useSphereWallet } from '../hooks/useSphereWallet';
 import { useWishes } from '../hooks/useWishes';
 import { useLeaderboard } from '../hooks/useLeaderboard';
-
 import Header from '../components/Header';
 import WishCard from '../components/WishCard';
 import CreateWishModal from '../components/CreateWishModal';
 import Leaderboard from '../components/Leaderboard';
 
-type Tab =
-  | 'hot'
-  | 'new'
-  | 'expiring'
-  | 'mywishes'
-  | 'myvotes'
-  | 'resolved';
+type Tab = 'hot' | 'new' | 'expiring' | 'mine' | 'myvotes' | 'resolved' | 'leaderboard' | 'wishscore';
 
 export default function HomePage() {
-
   const wallet = useSphereWallet();
+  const { wishes, createWish, vote } = useWishes();
+  // ✅ FIX: destructure wishScoreUsers
+  const { wishCreators, voters, wishScoreUsers } = useLeaderboard(wishes);
 
-  const {
-    wishes,
-    createWish,
-    vote
-  } = useWishes();
-
-  const {
-  wishCreators,
-  voters,
-} = useLeaderboard(wishes);
-
-const {
-  wishScoreUsers
-} = useWishScoreLeaderboard();
-
-  const [tab, setTab] =
-    useState<Tab>('hot');
-
-  const [showCreate, setShowCreate] =
-    useState(false);
-
-  const [
-    showLeaderboard,
-    setShowLeaderboard
-  ] = useState(false);
-
-  const [
-  showWishScoreHistory,
-  setShowWishScoreHistory
-] = useState(false);
+  const [tab, setTab] = useState<Tab>('hot');
+  const [showCreate, setShowCreate] = useState(false);
+  // ✅ FIX: leaderboard/wishscore modal state
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showWishScore, setShowWishScore] = useState(false);
 
   const totalVotes = useMemo(
-    () =>
-      wishes.reduce(
-        (sum, w) =>
-          sum + w.votes.length,
-        0
-      ),
+    () => wishes.reduce((sum, w) => sum + w.votes.length, 0),
     [wishes]
   );
 
+  const myAddress = wallet.identity?.nametag ?? '';
+
+  // ✅ FIX: WishScore history for current user
+  const myWishScoreHistory = useMemo(() => {
+    const myWishes = wishes.filter(w => w.creatorAddress === myAddress);
+    const myVotes: { description: string; points: number; time: number }[] = [];
+
+    myWishes.forEach(w => {
+      myVotes.push({ description: `Created wish: "${w.text.slice(0, 30)}..."`, points: 10, time: w.createdAt });
+    });
+
+    wishes.forEach(w => {
+      w.votes.forEach(v => {
+        if (v.voterAddress === myAddress) {
+          myVotes.push({ description: `Voted on: "${w.text.slice(0, 30)}..."`, points: 5, time: v.votedAt });
+        }
+      });
+    });
+
+    return myVotes.sort((a, b) => b.time - a.time);
+  }, [wishes, myAddress]);
+
+  const myTotalWishScore = myWishScoreHistory.reduce((s, e) => s + e.points, 0);
+
   const filtered = useMemo<Wish[]>(() => {
-  const addr = wallet.identity?.nametag;
-  const now = Date.now();
+    switch (tab) {
+      case 'hot':
+        return [...wishes]
+          .filter(w => w.status === 'active')
+          .sort((a, b) => (b.fulfilCount + b.noFulfilCount) - (a.fulfilCount + a.noFulfilCount));
 
-  // Only truly active (not expired by time either)
-  const activeOnly = wishes.filter(
-    w => w.status === 'active' && w.expiresAt > now
-  );
+      case 'new':
+        return [...wishes]
+          .filter(w => w.status === 'active')
+          .sort((a, b) => b.createdAt - a.createdAt);
 
-  switch (tab) {
-    case 'hot':
-      return [...activeOnly]
-        .sort((a, b) =>
-          (b.fulfilCount + b.noFulfilCount) -
-          (a.fulfilCount + a.noFulfilCount)
-        );
+      case 'expiring':
+        return [...wishes]
+          .filter(w => w.status === 'active')
+          .sort((a, b) => a.expiresAt - b.expiresAt);
 
-    case 'new':
-      return [...activeOnly]
-        .sort((a, b) => b.createdAt - a.createdAt);
+      // ✅ FIX: "Mine" = only wishes I created
+      case 'mine':
+        return myAddress
+          ? wishes.filter(w => w.creatorAddress === myAddress)
+          : [];
 
-    case 'expiring':
-      return [...activeOnly]
-        .filter(w => w.expiresAt - now <= 3_600_000)
-        .sort((a, b) => a.expiresAt - b.expiresAt);
+      // ✅ FIX: "My Votes" = wishes I voted on
+      case 'myvotes':
+        return myAddress
+          ? wishes.filter(w => w.votes.some(v => v.voterAddress === myAddress))
+          : [];
 
-    case 'mywishes':
-      return addr
-        ? [...wishes]
-            .filter(w => w.creatorAddress === addr)
-            .sort((a, b) => b.createdAt - a.createdAt)
-        : [];
+      case 'resolved':
+        return [...wishes]
+          .filter(w => w.status === 'fulfilled' || w.status === 'unfulfilled')
+          .sort((a, b) => b.expiresAt - a.expiresAt);
 
-    case 'myvotes':
-      return addr
-        ? [...wishes]
-            .filter(w => w.votes.some(v => v.voterAddress === addr))
-            .sort((a, b) => {
-              const aVote = a.votes.find(v => v.voterAddress === addr);
-              const bVote = b.votes.find(v => v.voterAddress === addr);
-              return (bVote?.votedAt ?? 0) - (aVote?.votedAt ?? 0);
-            })
-        : [];
+      default:
+        return wishes;
+    }
+  }, [wishes, tab, myAddress]);
 
-    case 'resolved':
-      return [...wishes]
-        .filter(w =>
-          w.status === 'fulfilled' ||
-          w.status === 'unfulfilled' ||
-          (w.status === 'active' && w.expiresAt <= now)
-        )
-        .sort((a, b) => b.expiresAt - a.expiresAt);
+  const handleCreateWish = async (params: {
+    text: string;
+    category: WishCategory;
+    duration: WishDuration;
+    stakeUCT: number;
+  }) => {
+    if (!wallet.identity?.nametag) {
+      throw new Error('Connect wallet first');
+    }
+    await createWish({
+      ...params,
+      creatorNametag: wallet.identity.nametag,
+      creatorAddress: wallet.identity.nametag,
+    });
+  };
 
-    default:
-      return wishes;
-  }
-}, [wishes, tab, wallet.identity]);
+  const handleVote = async (wish: Wish, voteType: VoteType) => {
+    if (!wallet.identity?.nametag) {
+      throw new Error('Connect wallet first');
+    }
+    await vote({
+      wish,
+      voteType,
+      voterAddress: wallet.identity.nametag,
+      voterNametag: wallet.identity.nametag,
+    });
+  };
 
-  const handleCreateWish =
-    async (params: {
-      text: string;
-      category: WishCategory;
-      duration: WishDuration;
-      stakeUCT: number;
-    }) => {
-
-      if (
-        !wallet.identity?.nametag
-      ) {
-        throw new Error(
-          'Connect wallet first'
-        );
-      }
-
-      await createWish({
-        ...params,
-
-        creatorNametag:
-          wallet.identity.nametag,
-
-        creatorAddress:
-          wallet.identity.nametag,
-      });
-    };
-
-  const handleVote =
-    async (
-      wish: Wish,
-      voteType: VoteType
-    ) => {
-
-      if (
-        !wallet.identity?.nametag
-      ) {
-        throw new Error(
-          'Connect wallet first'
-        );
-      }
-
-      await vote({
-        wish,
-        voteType,
-
-        voterAddress:
-          wallet.identity.nametag,
-
-        voterNametag:
-          wallet.identity.nametag,
-      });
-    };
-
-  const TABS: {
-    key: Tab;
-    label: string;
-    requiresWallet?: boolean;
-  }[] = [
-    {
-      key: 'hot',
-      label: '🔥 Trending'
-    },
-
-    {
-      key: 'new',
-      label: '✨ Fresh'
-    },
-
-    {
-      key: 'expiring',
-      label: '⏳ Last Hour'
-    },
-
-    {
-      key: 'mywishes',
-      label: '🌠 My Wishes',
-      requiresWallet: true
-    },
-
-    {
-      key: 'myvotes',
-      label: '🗳️ My Votes',
-      requiresWallet: true
-    },
-
-    {
-      key: 'resolved',
-      label: '📜 Resolved'
-    },
+  // ✅ FIX: Tab bar rendered properly, split "mine" into "My Wishes" + "My Votes"
+  const TABS: { key: Tab; label: string }[] = [
+    { key: 'hot',        label: '🔥 Trending'   },
+    { key: 'new',        label: '✨ Fresh'       },
+    { key: 'expiring',   label: '⏰ Last Hour'   },
+    { key: 'mine',       label: '🙏 My Wishes'  },
+    { key: 'myvotes',    label: '🗳️ My Votes'   },
+    { key: 'resolved',   label: '✅ Resolved'   },
   ];
 
   return (
-
-    <div className="
-      min-h-screen
-      text-white
-      relative
-      overflow-hidden
-    ">
-
-      {/* BACKGROUND */}
-
-      <div className="
-        fixed inset-0
-        overflow-hidden
-        pointer-events-none
-      ">
-
-        <div className="
-          absolute
-          top-[-10%]
-          left-1/2
-          -translate-x-1/2
-
-          w-[1000px]
-          h-[1000px]
-
-          rounded-full
-
-          bg-orange-500/10
-
-          blur-[180px]
-        " />
-
-        <div className="
-          absolute
-          bottom-[-20%]
-          right-[-10%]
-
-          w-[700px]
-          h-[700px]
-
-          rounded-full
-
-          bg-amber-400/10
-
-          blur-[160px]
-        " />
-
+    <div className="min-h-screen bg-slate-950 text-white">
+      {/* Ambient background */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div
+          className="absolute top-1/4 left-1/2 -translate-x-1/2
+            w-[600px] h-[600px] rounded-full
+            bg-amber-500/3 blur-[120px]"
+        />
       </div>
 
       <Header
-        nametag={
-          wallet.identity?.nametag
-        }
-        isConnected={
-          wallet.isConnected
-        }
-        isConnecting={
-          wallet.status ===
-          'connecting'
-        }
+        nametag={wallet.identity?.nametag}
+        isConnected={wallet.isConnected}
+        isConnecting={wallet.status === 'connecting'}
         onConnect={wallet.connect}
-        onDisconnect={
-          wallet.disconnect
-        }
+        onDisconnect={wallet.disconnect}
         totalWishes={wishes.length}
         totalVotes={totalVotes}
       />
 
-      <main className="
-        relative
-        max-w-7xl
-        mx-auto
-        px-6
-        py-10
-      ">
+      <main className="relative max-w-4xl mx-auto px-4 py-6">
 
-        {/* HERO */}
-
-        <div className="
-          mb-10
-          relative
-          overflow-hidden
-
-          rounded-[32px]
-
-          border
-          border-white/5
-
-          bg-white/[0.03]
-
-          backdrop-blur-2xl
-
-          p-8 md:p-12
-        ">
-
-          <div className="
-            absolute
-            inset-0
-
-            bg-gradient-to-br
-            from-orange-500/10
-            via-transparent
-            to-transparent
-          " />
-
-          <div className="relative z-10">
-
-            <div className="
-              inline-flex
-              items-center
-              gap-2
-
-              rounded-full
-
-              border
-              border-orange-500/20
-
-              bg-orange-500/10
-
-              px-4 py-2
-
-              text-sm
-              text-orange-300
-              font-semibold
-
-              mb-5
-            ">
-              ✦ Powered by Unicity Sphere
-            </div>
-
-            <h1 className="
-              text-5xl
-              md:text-7xl
-
-              font-black
-
-              tracking-tight
-
-              leading-[0.95]
-
-              max-w-4xl
-            ">
-              Cast Wishes.
-              <br />
-              Let The Community Decide.
-            </h1>
-
-            <p className="
-              mt-6
-
-              text-lg
-              md:text-xl
-
-              text-slate-400
-
-              max-w-2xl
-
-              leading-relaxed
-            ">
-              Stake UCT on wishes,
-              vote with the crowd,
-              and discover what the
-              Sphere community truly believes.
-            </p>
-
-          </div>
-
-        </div>
-
-        {/* TABS */}
-
-        <div className="
-          flex
-          gap-3
-
-          mb-10
-
-          overflow-x-auto
-
-          pb-2
-        ">
-
+        {/* ✅ FIX: Tab bar actually rendered */}
+        <div className="flex flex-wrap gap-2 mb-6">
           {TABS.map(t => (
-
             <button
               key={t.key}
-              onClick={() =>
-                setTab(t.key)
-              }
-
-              className={`
-                px-5 py-3
-
-                rounded-2xl
-
-                text-sm md:text-base
-
-                font-bold
-
-                whitespace-nowrap
-
-                border
-
-                backdrop-blur-xl
-
-                transition-all
-                duration-200
-
-                ${
-                  tab === t.key
-
-                    ? `
-                      bg-gradient-to-r
-                      from-amber-400
-                      to-orange-500
-
-                      text-black
-
-                      border-orange-300
-
-                      shadow-lg
-                      shadow-orange-500/20
-                    `
-
-                    : `
-                      bg-white/[0.04]
-
-                      text-slate-300
-
-                      border-white/5
-
-                      hover:border-orange-400/30
-                      hover:bg-orange-500/5
-                    `
-                }
-              `}
+              onClick={() => setTab(t.key)}
+              className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors
+                ${tab === t.key
+                  ? 'bg-amber-500 text-black'
+                  : 'bg-slate-800 text-slate-400 hover:text-white'}`}
             >
               {t.label}
             </button>
           ))}
 
+          {/* ✅ FIX: Leaderboard button opens modal */}
           <button
-            onClick={() =>
-              setShowLeaderboard(true)
-            }
-
-            className="
-              ml-auto
-
-              px-5 py-3
-
-              rounded-2xl
-
-              text-sm md:text-base
-              font-bold
-
-              whitespace-nowrap
-
-              border
-              border-white/5
-
-              bg-white/[0.04]
-
-              text-slate-300
-
-              hover:border-orange-400/30
-              hover:bg-orange-500/5
-
-              transition-all
-            "
+            onClick={() => setShowLeaderboard(true)}
+            className="px-4 py-2 rounded-full text-sm font-semibold bg-slate-800 text-slate-400 hover:text-white transition-colors"
           >
             🏆 Leaderboard
-
-            <button
-  onClick={() =>
-    setShowWishScoreHistory(
-      true
-    )
-  }
-
-  className="
-    px-5 py-3
-
-    rounded-2xl
-
-    text-sm md:text-base
-    font-bold
-
-    whitespace-nowrap
-
-    border
-    border-white/5
-
-    bg-white/[0.04]
-
-    text-slate-300
-
-    hover:border-orange-400/30
-    hover:bg-orange-500/5
-
-    transition-all
-  "
->
-  ⭐ WishScore
-</button>
           </button>
 
+          {/* ✅ FIX: WishScore button opens history modal */}
+          <button
+            onClick={() => setShowWishScore(true)}
+            className="px-4 py-2 rounded-full text-sm font-semibold bg-slate-800 text-slate-400 hover:text-white transition-colors"
+          >
+            ⭐ WishScore
+          </button>
         </div>
 
-        {/* EMPTY STATE */}
-
-        {filtered.length === 0 && (
-
-          <div className="
-            text-center
-            py-28
-          ">
-
-            <p className="
-              text-6xl
-              mb-6
-            ">
-              {tab === 'hot'
-                ? '🔥'
-                : tab === 'new'
-                ? '✨'
-                : tab === 'expiring'
-                ? '⏳'
-                : tab === 'mywishes'
-                ? '🌠'
-                : tab === 'myvotes'
-                ? '🗳️'
-                : '📜'}
-            </p>
-
-            <p className="
-              text-slate-400
-              text-lg
-            ">
-
-              {
-                tab === 'mywishes' &&
-                !wallet.isConnected
-
-                  ? 'Connect wallet to see your wishes'
-
-                  : tab ===
-                      'myvotes' &&
-                    !wallet.isConnected
-
-                  ? 'Connect wallet to see your votes'
-
-                  : tab ===
-                    'mywishes'
-
-                  ? "You haven't created any wishes yet"
-
-                  : tab ===
-                    'myvotes'
-
-                  ? "You haven't voted on any wishes yet"
-
-                  : tab ===
-                    'expiring'
-
-                  ? 'No wishes expiring soon'
-
-                  : tab ===
-                    'resolved'
-
-                  ? 'No resolved wishes yet'
-
-                  : 'No wishes yet · be the first'
-              }
-
-            </p>
-
-          </div>
-
-        )}
-
-        {/* FEED */}
-
-        <div className="
-          grid
-          gap-8
-        ">
-
-          {filtered.map(wish => (
-
-            <WishCard
-              key={wish.id}
-              wish={wish}
-              currentAddress={
-                wallet.identity?.nametag
-              }
-              onVote={handleVote}
-            />
-
-          ))}
-
+        {/* Feed */}
+        <div className="grid gap-4">
+          {filtered.length === 0 ? (
+            <p className="text-center text-slate-600 py-12">No wishes here yet.</p>
+          ) : (
+            filtered.map(wish => (
+              <WishCard
+                key={wish.id}
+                wish={wish}
+                currentAddress={wallet.identity?.nametag}
+                onVote={handleVote}
+              />
+            ))
+          )}
         </div>
-
-        {/* LEADERBOARD */}
-
-        {showLeaderboard && (
-
-          <div className="
-            fixed inset-0
-            z-50
-
-            flex
-            items-center
-            justify-center
-
-            px-4
-          ">
-
-            <div
-              className="
-                absolute
-                inset-0
-
-                bg-black/70
-
-                backdrop-blur-md
-              "
-
-              onClick={() =>
-                setShowLeaderboard(
-                  false
-                )
-              }
-            />
-
-            <div className="
-              relative
-
-              w-full
-              max-w-lg
-            ">
-
-              <div className="
-                flex
-                items-center
-                justify-between
-
-                mb-5
-              ">
-
-                <h2 className="
-                  text-2xl
-                  font-black
-                ">
-                  🏆 Leaderboard
-                </h2>
-
-                <button
-                  onClick={() =>
-                    setShowLeaderboard(
-                      false
-                    )
-                  }
-
-                  className="
-                    text-slate-500
-                    hover:text-white
-
-                    text-2xl
-                  "
-                >
-                  ✕
-                </button>
-
-              </div>
-
-              <Leaderboard
-  wishCreators={wishCreators}
-  voters={voters}
-  wishScoreUsers={wishScoreUsers}
-/>
-
-            </div>
-
-          </div>
-
-        )}
-
       </main>
 
-      {/* FOOTER */}
-
-      <footer className="
-        border-t
-        border-white/5
-
-        py-8
-        mt-12
-
-        text-center
-      ">
-
-        <p className="
-          text-sm
-          text-slate-500
-        ">
-
-          Built on
-
-          <span className="
-            text-orange-400
-            font-bold
-            mx-1
-          ">
-            Unicity Sphere
-          </span>
-
-          ·
-
-          <span className="
-            text-amber-300
-            font-bold
-            ml-1
-          ">
-            @pawan429
-          </span>
-
-        </p>
-
-      </footer>
-
-      {/* FLOATING BUTTON */}
-
+      {/* Floating Button */}
       {wallet.isConnected && (
-
         <button
-          onClick={() =>
-            setShowCreate(true)
-          }
-
-          className="
-            fixed
-            bottom-8
-            right-8
-
-            z-40
-
-            w-16
-            h-16
-
-            rounded-2xl
-
-            bg-gradient-to-br
-            from-amber-400
-            to-orange-500
-
-            text-black
-            text-3xl
-            font-black
-
-            shadow-2xl
-            shadow-orange-500/30
-
-            hover:scale-110
-            hover:rotate-6
-
-            transition-all
-            duration-300
-
-            flex
-            items-center
-            justify-center
-          "
+          onClick={() => setShowCreate(true)}
+          className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-amber-500 text-black text-2xl"
         >
           +
         </button>
-
       )}
 
+      {/* Create Wish Modal */}
       <CreateWishModal
         open={showCreate}
-        onClose={() =>
-          setShowCreate(false)
-        }
-        onSubmit={
-          handleCreateWish
-        }
-        creatorNametag={
-          wallet.identity?.nametag ??
-          ''
-        }
+        onClose={() => setShowCreate(false)}
+        onSubmit={handleCreateWish}
+        creatorNametag={wallet.identity?.nametag ?? ''}
       />
 
-<WishScoreHistory
-  open={
-    showWishScoreHistory
-  }
+      {/* ✅ FIX: Leaderboard Modal with all 3 tabs including WishScore */}
+      {showLeaderboard && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setShowLeaderboard(false)}
+        >
+          <div
+            className="w-full max-w-md bg-slate-900 rounded-2xl p-6 relative"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-white">🏆 Leaderboard</h2>
+              <button onClick={() => setShowLeaderboard(false)} className="text-slate-400 hover:text-white text-xl">×</button>
+            </div>
+            {/* ✅ FIX: Pass wishScoreUsers to Leaderboard */}
+            <Leaderboard
+              wishCreators={wishCreators}
+              voters={voters}
+              wishScoreUsers={wishScoreUsers}
+            />
+          </div>
+        </div>
+      )}
 
-  onClose={() =>
-    setShowWishScoreHistory(
-      false
-    )
-  }
+      {/* ✅ FIX: WishScore History Modal for current user */}
+      {showWishScore && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setShowWishScore(false)}
+        >
+          <div
+            className="w-full max-w-md bg-slate-900 rounded-2xl p-6 relative max-h-[80vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-white">⭐ WishScore History</h2>
+              <button onClick={() => setShowWishScore(false)} className="text-slate-400 hover:text-white text-xl">×</button>
+            </div>
 
-  address={
-    wallet.identity?.nametag
-  }
-/>
+            {!wallet.isConnected ? (
+              <p className="text-slate-500 text-sm text-center py-6">Connect wallet to see your WishScore.</p>
+            ) : (
+              <>
+                <div className="text-center mb-4">
+                  <span className="text-3xl font-bold text-amber-400">{myTotalWishScore}</span>
+                  <p className="text-slate-400 text-xs mt-1">Total WishScore Points</p>
+                </div>
 
+                {myWishScoreHistory.length === 0 ? (
+                  <p className="text-slate-500 text-sm text-center py-6">No WishScore activity yet</p>
+                ) : (
+                  <div className="space-y-2">
+                    {myWishScoreHistory.map((item, i) => (
+                      <div key={i} className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-800/40">
+                        <span className="text-xs text-slate-300 flex-1 truncate">{item.description}</span>
+                        <span className="text-xs font-bold text-amber-400 ml-2">+{item.points} pts</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
