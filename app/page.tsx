@@ -61,32 +61,41 @@ export default function HomePage() {
   // page.tsx is the only place that knows directAddress
   // it adds creatorAddress/creatorNametag before calling createWish
   const handleCreateWish = async (params: {
-    text: string;
-    category: WishCategory;
-    duration: WishDuration;
-    stakeUCT: number;
-  }) => {
-    if (!wallet.identity?.directAddress) {
-      throw new Error('Connect wallet first');
-    }
+  text: string;
+  category: WishCategory;
+  duration: WishDuration;
+  stakeUCT: number;
+}) => {
+  if (!wallet.identity?.directAddress) {
+    throw new Error('Connect wallet first');
+  }
+  try {
     await createWish({
       ...params,
       creatorNametag: wallet.identity.nametag || 'anonymous',
-      creatorAddress: wallet.identity.directAddress, // DIRECT://000... real address
+      creatorAddress: wallet.identity.directAddress,
     });
-  };
+  } catch (e: any) {
+    // Rethrow so modal shows the error message
+    throw e;
+  }
+};
 
   const handleVote = async (wish: Wish, voteType: VoteType) => {
-    if (!wallet.identity?.directAddress) {
-      throw new Error('Connect wallet first');
-    }
+  if (!wallet.identity?.directAddress) {
+    throw new Error('Connect wallet first');
+  }
+  try {
     await vote({
       wish,
       voteType,
-      voterAddress: wallet.identity.directAddress, // DIRECT://000... real address
+      voterAddress: wallet.identity.directAddress,
       voterNametag: wallet.identity.nametag || 'anonymous',
     });
-  };
+  } catch (e: any) {
+    throw e;
+  }
+};
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'hot',      label: '🔥 Hot' },

@@ -72,19 +72,37 @@ export async function sendUCT(
     throw new Error('Recipient address is missing');
   }
 
-  // UCT = 18 decimals — BigInt required
   const amount = (
     BigInt(amountUCT) * BigInt('1000000000000000000')
   ).toString();
 
   console.log('SENDING UCT:', { recipient: recipientAddress, amount });
 
-  // CORRECT METHOD — intent not payments.send
-  await clientInstance.intent('send', {
-    coinId: 'UCT',
-    recipient: recipientAddress,
-    amount,
-  });
+  try {
+    const result = await clientInstance.intent('send', {
+      coinId: 'UCT',
+      recipient: recipientAddress,
+      amount,
+    });
+    console.log('INTENT RESULT:', result);
+  } catch (e: any) {
+    // If user cancelled the transaction, throw a clean message
+    const msg = e?.message || String(e) || '';
+    if (
+      msg.toLowerCase().includes('cancel') ||
+      msg.toLowerCase().includes('reject') ||
+      msg.toLowerCase().includes('denied') ||
+      msg.toLowerCase().includes('user refused')
+    ) {
+      throw new Error('Transaction cancelled by user');
+    }
+    // For the startsWith crash — this is an SDK internal error
+    // that happens when wallet closes. Transaction likely went through.
+    // Log it but don't crash the app.
+    console.warn('Intent send warning (may still have succeeded):', e);
+    // Re-throw so Supabase insert doesn't happen if truly failed
+    throw new Error('Transaction failed: ' + msg);
+  }
 }
 
 export function getClient() { return clientInstance; }
