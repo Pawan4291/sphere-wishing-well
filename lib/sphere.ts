@@ -29,8 +29,6 @@ export async function connectWallet(
   clientInstance = result.client;
 
   const raw: any = result.connection?.identity ?? {};
-  console.log('IDENTITY RAW from connection:', raw);
-
   let directAddress = raw?.directAddress || '';
   let nametag = raw?.nametag || '';
   let l1Address = raw?.l1Address || '';
@@ -39,7 +37,6 @@ export async function connectWallet(
   if (!nametag || !directAddress) {
     try {
       const queried: any = await result.client.query('sphere_getIdentity');
-      console.log('IDENTITY from query:', queried);
       directAddress = queried?.directAddress || directAddress;
       nametag = queried?.nametag || nametag;
       l1Address = queried?.l1Address || l1Address;
@@ -73,8 +70,11 @@ export async function sendUCT(
     });
   } catch (e: any) {
     const msg = String(e?.message ?? e ?? '');
-    if (msg.includes('startsWith') || msg.includes('Cannot read properties of undefined')) {
-      console.warn('SDK internal error after send (tx succeeded):', msg);
+    if (
+      msg.includes('startsWith') ||
+      msg.includes('Cannot read properties of undefined')
+    ) {
+      console.warn('SDK internal error - tx likely succeeded:', msg);
       return;
     }
     throw e;
