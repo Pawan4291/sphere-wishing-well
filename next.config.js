@@ -1,8 +1,14 @@
 /** @type {import('next').NextConfig} */
-const isGithubPages = process.env.NODE_ENV === 'production';
+
+// Only apply GitHub Pages basePath when explicitly deploying to GitHub Pages
+// Vercel sets VERCEL=1, GitHub Pages does NOT — so we use that to differentiate
+const isGithubPages = process.env.GITHUB_PAGES === 'true';
 
 const nextConfig = {
-  output: 'export',
+  // 'export' is needed for GitHub Pages (static export)
+  // But on Vercel we DON'T want static export — remove it so SSR/API routes work
+  ...(isGithubPages ? { output: 'export' } : {}),
+
   trailingSlash: true,
 
   basePath: isGithubPages ? '/sphere-wishing-well' : '',
