@@ -14,14 +14,46 @@ export default function Header({
   nametag, isConnected, isConnecting, onConnect, onDisconnect, totalWishes, totalVotes
 }: HeaderProps) {
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-800/60 bg-slate-950/80 backdrop-blur-xl">
-      <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+    <header className="
+sticky top-0 z-50
+border-b border-white/5
+bg-black/30
+backdrop-blur-2xl
+">
+      <div className="
+max-w-7xl mx-auto
+px-6 py-4
+flex items-center justify-between
+gap-6
+">
         {/* Logo */}
         <div className="flex items-center gap-3">
-          <span className="text-2xl">🪙</span>
+         <div className="
+w-12 h-12
+rounded-2xl
+bg-gradient-to-br
+from-amber-400
+to-orange-600
+flex items-center justify-center
+shadow-lg shadow-orange-500/20
+text-black text-xl font-black
+">
+✦
+</div>
           <div>
-            <h1 className="text-white font-black text-lg leading-none tracking-tight">Wishing Well</h1>
-            <p className="text-xs text-slate-500 leading-none mt-0.5">on Unicity Sphere</p>
+           <h1 className="
+text-white
+font-black
+text-2xl
+leading-none
+tracking-tight
+">Wishing Well</h1>
+            <p className="
+text-sm
+text-slate-400
+leading-none
+mt-1
+">on Unicity Sphere</p>
           </div>
         </div>
 

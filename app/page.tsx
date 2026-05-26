@@ -1,245 +1,840 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import type { Wish, VoteType, WishCategory, WishDuration } from '../types/wish';
+import type {
+  Wish,
+  VoteType,
+  WishCategory,
+  WishDuration
+} from '../types/wish';
+
 import { useSphereWallet } from '../hooks/useSphereWallet';
 import { useWishes } from '../hooks/useWishes';
 import { useLeaderboard } from '../hooks/useLeaderboard';
+
 import Header from '../components/Header';
 import WishCard from '../components/WishCard';
 import CreateWishModal from '../components/CreateWishModal';
 import Leaderboard from '../components/Leaderboard';
 
-type Tab = 'hot' | 'new' | 'expiring' | 'mywishes' | 'myvotes' | 'resolved';
+type Tab =
+  | 'hot'
+  | 'new'
+  | 'expiring'
+  | 'mywishes'
+  | 'myvotes'
+  | 'resolved';
 
 export default function HomePage() {
-  const wallet = useSphereWallet();
-  const { wishes, createWish, vote } = useWishes();
-  const { wishCreators, voters } = useLeaderboard(wishes);
 
-  const [tab, setTab] = useState<Tab>('hot');
-  const [showCreate, setShowCreate] = useState(false);
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const wallet = useSphereWallet();
+
+  const {
+    wishes,
+    createWish,
+    vote
+  } = useWishes();
+
+  const {
+    wishCreators,
+    voters
+  } = useLeaderboard(wishes);
+
+  const [tab, setTab] =
+    useState<Tab>('hot');
+
+  const [showCreate, setShowCreate] =
+    useState(false);
+
+  const [
+    showLeaderboard,
+    setShowLeaderboard
+  ] = useState(false);
 
   const totalVotes = useMemo(
-    () => wishes.reduce((sum, w) => sum + w.votes.length, 0),
+    () =>
+      wishes.reduce(
+        (sum, w) =>
+          sum + w.votes.length,
+        0
+      ),
     [wishes]
   );
 
   const filtered = useMemo<Wish[]>(() => {
-    const addr = wallet.identity?.nametag;
+
+    const addr =
+      wallet.identity?.nametag;
+
     switch (tab) {
+
       case 'hot':
-        // Most votes total (fulfil + nofulfil combined)
         return [...wishes]
-          .filter(w => w.status === 'active')
+          .filter(
+            w => w.status === 'active'
+          )
           .sort(
             (a, b) =>
-              (b.fulfilCount + b.noFulfilCount) -
-              (a.fulfilCount + a.noFulfilCount)
+              (b.fulfilCount +
+                b.noFulfilCount) -
+              (a.fulfilCount +
+                a.noFulfilCount)
           );
+
       case 'new':
         return [...wishes]
-          .filter(w => w.status === 'active')
-          .sort((a, b) => b.createdAt - a.createdAt);
+          .filter(
+            w => w.status === 'active'
+          )
+          .sort(
+            (a, b) =>
+              b.createdAt -
+              a.createdAt
+          );
+
       case 'expiring':
-        // Only wishes with ≤1 hour left
         return [...wishes]
-          .filter(w => w.status === 'active' && w.expiresAt - Date.now() <= 3_600_000)
-          .sort((a, b) => a.expiresAt - b.expiresAt);
+          .filter(
+            w =>
+              w.status ===
+                'active' &&
+              w.expiresAt -
+                Date.now() <=
+                3_600_000
+          )
+          .sort(
+            (a, b) =>
+              a.expiresAt -
+              b.expiresAt
+          );
+
       case 'mywishes':
-        // All wishes created by this user (active + expired)
         return addr
           ? [...wishes]
-              .filter(w => w.creatorAddress === addr)
-              .sort((a, b) => b.createdAt - a.createdAt)
+              .filter(
+                w =>
+                  w.creatorAddress ===
+                  addr
+              )
+              .sort(
+                (a, b) =>
+                  b.createdAt -
+                  a.createdAt
+              )
           : [];
+
       case 'myvotes':
-        // All wishes this user voted on
         return addr
           ? [...wishes]
-              .filter(w => w.votes.some(v => v.voterAddress === addr))
+              .filter(
+                w =>
+                  w.votes.some(
+                    v =>
+                      v.voterAddress ===
+                      addr
+                  )
+              )
               .sort((a, b) => {
-                const aVote = a.votes.find(v => v.voterAddress === addr);
-                const bVote = b.votes.find(v => v.voterAddress === addr);
-                return (bVote?.votedAt ?? 0) - (aVote?.votedAt ?? 0);
+
+                const aVote =
+                  a.votes.find(
+                    v =>
+                      v.voterAddress ===
+                      addr
+                  );
+
+                const bVote =
+                  b.votes.find(
+                    v =>
+                      v.voterAddress ===
+                      addr
+                  );
+
+                return (
+                  (bVote?.votedAt ?? 0) -
+                  (aVote?.votedAt ?? 0)
+                );
               })
           : [];
+
       case 'resolved':
         return [...wishes]
-          .filter(w => w.status === 'fulfilled' || w.status === 'unfulfilled')
-          .sort((a, b) => b.expiresAt - a.expiresAt);
+          .filter(
+            w =>
+              w.status ===
+                'fulfilled' ||
+              w.status ===
+                'unfulfilled'
+          )
+          .sort(
+            (a, b) =>
+              b.expiresAt -
+              a.expiresAt
+          );
+
       default:
         return wishes;
     }
-  }, [wishes, tab, wallet.identity]);
 
-  const handleCreateWish = async (params: {
-    text: string;
-    category: WishCategory;
-    duration: WishDuration;
-    stakeUCT: number;
-  }) => {
-    if (!wallet.identity?.nametag) {
-      throw new Error('Connect wallet first');
-    }
-    await createWish({
-      ...params,
-      creatorNametag: wallet.identity.nametag,
-      creatorAddress: wallet.identity.nametag,
-    });
-  };
+  }, [
+    wishes,
+    tab,
+    wallet.identity
+  ]);
 
-  const handleVote = async (wish: Wish, voteType: VoteType) => {
-    if (!wallet.identity?.nametag) {
-      throw new Error('Connect wallet first');
-    }
-    await vote({
-      wish,
-      voteType,
-      voterAddress: wallet.identity.nametag,
-      voterNametag: wallet.identity.nametag,
-    });
-  };
+  const handleCreateWish =
+    async (params: {
+      text: string;
+      category: WishCategory;
+      duration: WishDuration;
+      stakeUCT: number;
+    }) => {
 
-  const TABS: { key: Tab; label: string; requiresWallet?: boolean }[] = [
-    { key: 'hot',      label: '🔥 Trending' },
-    { key: 'new',      label: '✨ Fresh' },
-    { key: 'expiring', label: '⏳ Last Hour' },
-    { key: 'mywishes', label: '🌠 My Wishes', requiresWallet: true },
-    { key: 'myvotes',  label: '🗳️ My Votes',  requiresWallet: true },
-    { key: 'resolved', label: '📜 Resolved' },
+      if (
+        !wallet.identity?.nametag
+      ) {
+        throw new Error(
+          'Connect wallet first'
+        );
+      }
+
+      await createWish({
+        ...params,
+
+        creatorNametag:
+          wallet.identity.nametag,
+
+        creatorAddress:
+          wallet.identity.nametag,
+      });
+    };
+
+  const handleVote =
+    async (
+      wish: Wish,
+      voteType: VoteType
+    ) => {
+
+      if (
+        !wallet.identity?.nametag
+      ) {
+        throw new Error(
+          'Connect wallet first'
+        );
+      }
+
+      await vote({
+        wish,
+        voteType,
+
+        voterAddress:
+          wallet.identity.nametag,
+
+        voterNametag:
+          wallet.identity.nametag,
+      });
+    };
+
+  const TABS: {
+    key: Tab;
+    label: string;
+    requiresWallet?: boolean;
+  }[] = [
+    {
+      key: 'hot',
+      label: '🔥 Trending'
+    },
+
+    {
+      key: 'new',
+      label: '✨ Fresh'
+    },
+
+    {
+      key: 'expiring',
+      label: '⏳ Last Hour'
+    },
+
+    {
+      key: 'mywishes',
+      label: '🌠 My Wishes',
+      requiresWallet: true
+    },
+
+    {
+      key: 'myvotes',
+      label: '🗳️ My Votes',
+      requiresWallet: true
+    },
+
+    {
+      key: 'resolved',
+      label: '📜 Resolved'
+    },
   ];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      {/* Ambient background */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full bg-amber-500/3 blur-[120px]" />
+
+    <div className="
+      min-h-screen
+      text-white
+      relative
+      overflow-hidden
+    ">
+
+      {/* BACKGROUND */}
+
+      <div className="
+        fixed inset-0
+        overflow-hidden
+        pointer-events-none
+      ">
+
+        <div className="
+          absolute
+          top-[-10%]
+          left-1/2
+          -translate-x-1/2
+
+          w-[1000px]
+          h-[1000px]
+
+          rounded-full
+
+          bg-orange-500/10
+
+          blur-[180px]
+        " />
+
+        <div className="
+          absolute
+          bottom-[-20%]
+          right-[-10%]
+
+          w-[700px]
+          h-[700px]
+
+          rounded-full
+
+          bg-amber-400/10
+
+          blur-[160px]
+        " />
+
       </div>
 
       <Header
-        nametag={wallet.identity?.nametag}
-        isConnected={wallet.isConnected}
-        isConnecting={wallet.status === 'connecting'}
+        nametag={
+          wallet.identity?.nametag
+        }
+        isConnected={
+          wallet.isConnected
+        }
+        isConnecting={
+          wallet.status ===
+          'connecting'
+        }
         onConnect={wallet.connect}
-        onDisconnect={wallet.disconnect}
+        onDisconnect={
+          wallet.disconnect
+        }
         totalWishes={wishes.length}
         totalVotes={totalVotes}
       />
 
-      <main className="relative max-w-4xl mx-auto px-4 py-6">
+      <main className="
+        relative
+        max-w-7xl
+        mx-auto
+        px-6
+        py-10
+      ">
 
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-1 scrollbar-hide">
+        {/* HERO */}
+
+        <div className="
+          mb-10
+          relative
+          overflow-hidden
+
+          rounded-[32px]
+
+          border
+          border-white/5
+
+          bg-white/[0.03]
+
+          backdrop-blur-2xl
+
+          p-8 md:p-12
+        ">
+
+          <div className="
+            absolute
+            inset-0
+
+            bg-gradient-to-br
+            from-orange-500/10
+            via-transparent
+            to-transparent
+          " />
+
+          <div className="relative z-10">
+
+            <div className="
+              inline-flex
+              items-center
+              gap-2
+
+              rounded-full
+
+              border
+              border-orange-500/20
+
+              bg-orange-500/10
+
+              px-4 py-2
+
+              text-sm
+              text-orange-300
+              font-semibold
+
+              mb-5
+            ">
+              ✦ Powered by Unicity Sphere
+            </div>
+
+            <h1 className="
+              text-5xl
+              md:text-7xl
+
+              font-black
+
+              tracking-tight
+
+              leading-[0.95]
+
+              max-w-4xl
+            ">
+              Cast Wishes.
+              <br />
+              Let The Community Decide.
+            </h1>
+
+            <p className="
+              mt-6
+
+              text-lg
+              md:text-xl
+
+              text-slate-400
+
+              max-w-2xl
+
+              leading-relaxed
+            ">
+              Stake UCT on wishes,
+              vote with the crowd,
+              and discover what the
+              Sphere community truly believes.
+            </p>
+
+          </div>
+
+        </div>
+
+        {/* TABS */}
+
+        <div className="
+          flex
+          gap-3
+
+          mb-10
+
+          overflow-x-auto
+
+          pb-2
+        ">
+
           {TABS.map(t => (
+
             <button
               key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap border transition-all
-                ${tab === t.key
-                  ? 'bg-amber-500 text-black border-amber-400'
-                  : 'bg-slate-800/80 text-slate-400 border-slate-700 hover:border-amber-500/40 hover:text-slate-200'
-                }`}
+              onClick={() =>
+                setTab(t.key)
+              }
+
+              className={`
+                px-5 py-3
+
+                rounded-2xl
+
+                text-sm md:text-base
+
+                font-bold
+
+                whitespace-nowrap
+
+                border
+
+                backdrop-blur-xl
+
+                transition-all
+                duration-200
+
+                ${
+                  tab === t.key
+
+                    ? `
+                      bg-gradient-to-r
+                      from-amber-400
+                      to-orange-500
+
+                      text-black
+
+                      border-orange-300
+
+                      shadow-lg
+                      shadow-orange-500/20
+                    `
+
+                    : `
+                      bg-white/[0.04]
+
+                      text-slate-300
+
+                      border-white/5
+
+                      hover:border-orange-400/30
+                      hover:bg-orange-500/5
+                    `
+                }
+              `}
             >
               {t.label}
             </button>
           ))}
+
           <button
-            onClick={() => setShowLeaderboard(true)}
-            className="ml-auto px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap
-              border bg-slate-800/80 text-slate-400 border-slate-700 hover:border-amber-500/40 hover:text-slate-200 transition-all"
+            onClick={() =>
+              setShowLeaderboard(true)
+            }
+
+            className="
+              ml-auto
+
+              px-5 py-3
+
+              rounded-2xl
+
+              text-sm md:text-base
+              font-bold
+
+              whitespace-nowrap
+
+              border
+              border-white/5
+
+              bg-white/[0.04]
+
+              text-slate-300
+
+              hover:border-orange-400/30
+              hover:bg-orange-500/5
+
+              transition-all
+            "
           >
             🏆 Leaderboard
           </button>
+
         </div>
 
-        {/* Empty states */}
+        {/* EMPTY STATE */}
+
         {filtered.length === 0 && (
-          <div className="text-center py-20">
-            <p className="text-4xl mb-3">
-              {tab === 'hot' ? '🔥' :
-               tab === 'new' ? '✨' :
-               tab === 'expiring' ? '⏳' :
-               tab === 'mywishes' ? '🌠' :
-               tab === 'myvotes' ? '🗳️' : '📜'}
-            </p>
-            <p className="text-slate-500 text-sm">
-              {tab === 'mywishes' && !wallet.isConnected
-                ? 'Connect your wallet to see your wishes'
-                : tab === 'myvotes' && !wallet.isConnected
-                ? 'Connect your wallet to see your votes'
-                : tab === 'mywishes'
-                ? "You haven't cast any wishes yet"
-                : tab === 'myvotes'
-                ? "You haven't voted on any wishes yet"
+
+          <div className="
+            text-center
+            py-28
+          ">
+
+            <p className="
+              text-6xl
+              mb-6
+            ">
+              {tab === 'hot'
+                ? '🔥'
+                : tab === 'new'
+                ? '✨'
                 : tab === 'expiring'
-                ? 'No wishes expiring in the next hour'
-                : tab === 'resolved'
-                ? 'No resolved wishes yet'
-                : 'No wishes here yet · be the first!'}
+                ? '⏳'
+                : tab === 'mywishes'
+                ? '🌠'
+                : tab === 'myvotes'
+                ? '🗳️'
+                : '📜'}
             </p>
+
+            <p className="
+              text-slate-400
+              text-lg
+            ">
+
+              {
+                tab === 'mywishes' &&
+                !wallet.isConnected
+
+                  ? 'Connect wallet to see your wishes'
+
+                  : tab ===
+                      'myvotes' &&
+                    !wallet.isConnected
+
+                  ? 'Connect wallet to see your votes'
+
+                  : tab ===
+                    'mywishes'
+
+                  ? "You haven't created any wishes yet"
+
+                  : tab ===
+                    'myvotes'
+
+                  ? "You haven't voted on any wishes yet"
+
+                  : tab ===
+                    'expiring'
+
+                  ? 'No wishes expiring soon'
+
+                  : tab ===
+                    'resolved'
+
+                  ? 'No resolved wishes yet'
+
+                  : 'No wishes yet · be the first'
+              }
+
+            </p>
+
           </div>
+
         )}
 
-        {/* Wish feed */}
-        <div className="grid gap-4">
+        {/* FEED */}
+
+        <div className="
+          grid
+          gap-8
+        ">
+
           {filtered.map(wish => (
+
             <WishCard
               key={wish.id}
               wish={wish}
-              currentAddress={wallet.identity?.nametag}
+              currentAddress={
+                wallet.identity?.nametag
+              }
               onVote={handleVote}
             />
+
           ))}
+
         </div>
 
-        {/* Leaderboard modal */}
+        {/* LEADERBOARD */}
+
         {showLeaderboard && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+
+          <div className="
+            fixed inset-0
+            z-50
+
+            flex
+            items-center
+            justify-center
+
+            px-4
+          ">
+
             <div
-              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-              onClick={() => setShowLeaderboard(false)}
+              className="
+                absolute
+                inset-0
+
+                bg-black/70
+
+                backdrop-blur-md
+              "
+
+              onClick={() =>
+                setShowLeaderboard(
+                  false
+                )
+              }
             />
-            <div className="relative w-full max-w-md">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-bold text-white">🏆 Leaderboard</h2>
+
+            <div className="
+              relative
+
+              w-full
+              max-w-lg
+            ">
+
+              <div className="
+                flex
+                items-center
+                justify-between
+
+                mb-5
+              ">
+
+                <h2 className="
+                  text-2xl
+                  font-black
+                ">
+                  🏆 Leaderboard
+                </h2>
+
                 <button
-                  onClick={() => setShowLeaderboard(false)}
-                  className="text-slate-500 hover:text-white text-xl leading-none"
-                >✕</button>
+                  onClick={() =>
+                    setShowLeaderboard(
+                      false
+                    )
+                  }
+
+                  className="
+                    text-slate-500
+                    hover:text-white
+
+                    text-2xl
+                  "
+                >
+                  ✕
+                </button>
+
               </div>
-              <Leaderboard wishCreators={wishCreators} voters={voters} />
+
+              <Leaderboard
+                wishCreators={
+                  wishCreators
+                }
+                voters={voters}
+              />
+
             </div>
+
           </div>
+
         )}
+
       </main>
 
-      {/* Builder credit */}
-      <footer className="text-center py-6 border-t border-slate-800/40 mt-4">
-        <p className="text-xs text-slate-600">
-          Built on <span className="text-amber-500/70 font-semibold">Unicity Sphere</span>
-          {' · '}
-          <span className="text-amber-400 font-bold">@pawan429</span>
+      {/* FOOTER */}
+
+      <footer className="
+        border-t
+        border-white/5
+
+        py-8
+        mt-12
+
+        text-center
+      ">
+
+        <p className="
+          text-sm
+          text-slate-500
+        ">
+
+          Built on
+
+          <span className="
+            text-orange-400
+            font-bold
+            mx-1
+          ">
+            Unicity Sphere
+          </span>
+
+          ·
+
+          <span className="
+            text-amber-300
+            font-bold
+            ml-1
+          ">
+            @pawan429
+          </span>
+
         </p>
+
       </footer>
 
-      {/* Floating Create Button */}
+      {/* FLOATING BUTTON */}
+
       {wallet.isConnected && (
+
         <button
-          onClick={() => setShowCreate(true)}
-          className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-amber-500
-            text-black text-2xl font-bold shadow-lg shadow-amber-500/30
-            hover:bg-amber-400 hover:scale-110 transition-all flex items-center justify-center"
-        >+</button>
+          onClick={() =>
+            setShowCreate(true)
+          }
+
+          className="
+            fixed
+            bottom-8
+            right-8
+
+            z-40
+
+            w-16
+            h-16
+
+            rounded-2xl
+
+            bg-gradient-to-br
+            from-amber-400
+            to-orange-500
+
+            text-black
+            text-3xl
+            font-black
+
+            shadow-2xl
+            shadow-orange-500/30
+
+            hover:scale-110
+            hover:rotate-6
+
+            transition-all
+            duration-300
+
+            flex
+            items-center
+            justify-center
+          "
+        >
+          +
+        </button>
+
       )}
 
       <CreateWishModal
         open={showCreate}
-        onClose={() => setShowCreate(false)}
-        onSubmit={handleCreateWish}
-        creatorNametag={wallet.identity?.nametag ?? ''}
+        onClose={() =>
+          setShowCreate(false)
+        }
+        onSubmit={
+          handleCreateWish
+        }
+        creatorNametag={
+          wallet.identity?.nametag ??
+          ''
+        }
       />
+
     </div>
   );
 }

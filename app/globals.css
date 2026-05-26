@@ -2,44 +2,117 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&display=swap');
 
 :root {
   --font-body: 'Space Grotesk', sans-serif;
-  --font-mono: 'Space Mono', monospace;
+
+  --bg-primary: #030712;
+  --bg-secondary: #071120;
+
+  --card-bg: rgba(8, 15, 30, 0.72);
+
+  --border-color: rgba(255,255,255,0.06);
+
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+
+  --orange: #f59e0b;
+  --orange-soft: rgba(245,158,11,0.16);
+
+  --green: #10b981;
+  --red: #ef4444;
 }
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   font-family: var(--font-body);
-  background: #020817;
-  color: #f8fafc;
+  background:
+    radial-gradient(circle at top,
+      rgba(245,158,11,0.14),
+      transparent 30%),
+    radial-gradient(circle at bottom right,
+      rgba(251,146,60,0.08),
+      transparent 30%),
+    linear-gradient(
+      to bottom,
+      #020617,
+      #030712
+    );
+
+  color: var(--text-primary);
+
+  min-height: 100vh;
+
   -webkit-font-smoothing: antialiased;
+
+  overflow-x: hidden;
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+/* SCROLLBAR */
 
-/* Tab overflow scroll */
-.overflow-x-auto::-webkit-scrollbar { height: 0; }
-
-/* Wish card hover glow */
-.wish-card-active:hover {
-  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.15),
-              0 8px 32px -8px rgba(245, 158, 11, 0.1);
+::-webkit-scrollbar {
+  width: 6px;
 }
 
-/* Pulse for live indicator */
-@keyframes soft-pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.4; }
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148,163,184,0.2);
+  border-radius: 999px;
+}
+
+/* Glass effect */
+
+.glass-panel {
+  background: rgba(8,15,30,0.72);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+/* Glow */
+
+.orange-glow {
+  box-shadow:
+    0 0 0 1px rgba(245,158,11,0.08),
+    0 10px 40px rgba(245,158,11,0.08);
+}
+
+/* Tab smoothness */
+
+.tab-transition {
+  transition:
+    background 0.25s ease,
+    border 0.25s ease,
+    color 0.25s ease,
+    transform 0.2s ease;
+}
+
+.tab-transition:hover {
+  transform: translateY(-1px);
+}
+
+/* Pulse */
+
+@keyframes softPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .animate-soft-pulse {
-  animation: soft-pulse 2s ease-in-out infinite;
+  animation: softPulse 2s ease-in-out infinite;
 }
