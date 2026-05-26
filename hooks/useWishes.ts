@@ -129,13 +129,19 @@ export function useWishes() {
         throw new Error('You already voted on this wish');
       }
 
-      if (wish.creatorAddress === voterAddress) {
-        throw new Error('Cannot vote on your own wish');
-      }
+      // BEFORE:
+if (wish.creatorAddress === voterAddress) {
+  throw new Error('Cannot vote on your own wish');
+}
 
-      if (wish.status !== 'active') {
-        throw new Error('This wish has expired');
-      }
+// AFTER:
+if (
+  wish.creatorAddress === voterAddress ||
+  wish.creatorAddress === voterNametag ||
+  wish.creatorNametag === voterNametag
+) {
+  throw new Error('Cannot vote on your own wish');
+}
 
       try {
         await sendUCT(
