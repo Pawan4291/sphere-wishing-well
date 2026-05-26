@@ -1,12 +1,18 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { Wish, WishCategory, WishDuration, VoteType } from '../types/wish';
+import type {
+  Wish,
+  WishCategory,
+  WishDuration,
+  VoteType,
+} from '../types/wish';
+
 import { supabase } from '../lib/supabase';
 import { sendUCT } from '../lib/sphere';
 
-// Builder identity — receives a small fee on each vote to attribute the app creator
-const BUILDER_NAMETAG = '@pawan429';
+// Builder wallet receives all app fees
+const BUILDER_WALLET = '@pawan429';
 
 export function useWishes() {
   const [wishes, setWishes] = useState<Wish[]>([]);
@@ -53,7 +59,9 @@ export function useWishes() {
 
   useEffect(() => {
     refresh();
+
     const interval = setInterval(refresh, 5000);
+
     return () => clearInterval(interval);
   }, [refresh]);
 
@@ -64,31 +72,68 @@ export function useWishes() {
       duration: WishDuration;
       stakeUCT: number;
       creatorNametag: string;
-      creatorAddress: string; // should be nametag e.g. "beastboy" or "@beastboy"
+      creatorAddress: string;
     }) => {
-      if (!params.creatorAddress || params.creatorAddress.trim() === '') {
-        throw new Error('Your wallet nametag is missing. Please reconnect your wallet.');
+
+      if (!params.creatorNametag) {
+        throw new Error(
+          'Wallet nametag missing. Reconnect wallet.'
+        );
       }
 
       const now = Date.now();
 
-      // Stake goes to creator's OWN wallet (skin in the game mechanic)
-      // AFTER — catches SDK crash, continues anyway:
-try { await sendUCT(params.creatorAddress, params.stakeUCT); } catch (e) { console.warn('UCT send failed (SDK bug):', e); }
+      // PAYMENT
+      try {
 
+        console.log('Creating wish payment...');
+
+        await sendUCT(
+          BUILDER_WALLET,
+          params.stakeUCT
+        );
+
+        console.log('Wish payment success');
+
+      } catch (e: any) {
+
+        console.error(
+          'Wish payment failed:',
+          e
+        );
+
+        throw new Error(
+          e?.message || 'Payment failed'
+        );
+      }
+
+      // CREATE DB RECORD
       const id = crypto.randomUUID();
+
       await supabase.from('wishes').insert({
         id,
+
         text: params.text,
+
         category: params.category,
+
         creator_nametag: params.creatorNametag,
-        creator_address: params.creatorAddress,
+
+        // STORE NAMETAG NOT DIRECT ADDRESS
+        creator_address: params.creatorNametag,
+
         staked_uct: params.stakeUCT,
+
         created_at: now,
+
         expires_at: now + params.duration,
+
         duration: params.duration,
+
         status: 'active',
+
         fulfil_count: 0,
+
         no_fulfil_count: 0,
       });
 
@@ -98,68 +143,127 @@ try { await sendUCT(params.creatorAddress, params.stakeUCT); } catch (e) { conso
   );
 
   const vote = useCallback(
-  async (params: {
-    wish: Wish;
-    voteType: VoteType;
-    voterAddress: string;
-    voterNametag: string;
-  }) => {
-    const { wish, voteType, voterAddress, voterNametag } = params;
+    async (params: {
+      wish: Wish;
+      voteType: VoteType;
+      voterAddress: string;
+      voterNametag: string;
+    }) => {
 
-    if (!voterAddress || voterAddress.trim() === '') {
-      throw new Error('Your wallet nametag is missing. Please reconnect.');
-    }
-    if (!wish.creatorAddress || wish.creatorAddress.trim() === '') {
-      throw new Error('This wish has no valid creator address.');
-    }
-    if (wish.votes.some(v => v.voterAddress === voterAddress)) {
-      throw new Error('You already voted on this wish');
-    }
-    if (wish.creatorAddress === voterAddress) {
-      throw new Error('Cannot vote on your own wish');
-    }
-    if (wish.status !== 'active') {
-      throw new Error('This wish has expired');
-    }
+      const {
+        wish,
+        voteType,
+        voterAddress,
+        voterNametag,
+      } = params;
 
-    // ✅ Try payment but DON'T block vote if SDK crashes
-    try {
-      // AFTER:
-try { await sendUCT(wish.creatorAddress, 1); } catch (e) { console.warn('UCT send failed (SDK bug):', e); }
-    } catch (e: any) {
-      console.error('UCT send failed:', e?.message);
-      // Continue anyway — record the vote even if payment fails
-      // This is a Sphere SDK bug outside our control
-    }
+      // VALIDATION
+      if (
+        wish.votes.some(
+          v => v.voterAddress === voterAddress
+        )
+      ) {
+        throw new Error(
+          'You already voted on this wish'
+        );
+      }
 
-    await supabase.from('votes').insert({
-      wish_id: wish.id,
-      voter_address: voterAddress,
-      voter_nametag: voterNametag,
-      vote_type: voteType,
-      voted_at: Date.now(),
-    });
+      if (
+        wish.creatorAddress === voterAddress
+      ) {
+        throw new Error(
+          'Cannot vote your own wish'
+        );
+      }
 
-    await supabase
-      .from('wishes')
-      .update({
-        fulfil_count: wish.fulfilCount + (voteType === 'fulfil' ? 1 : 0),
-        no_fulfil_count: wish.noFulfilCount + (voteType === 'nofulfil' ? 1 : 0),
-      })
-      .eq('id', wish.id);
+      if (wish.status !== 'active') {
+        throw new Error(
+          'This wish expired'
+        );
+      }
 
-    await refresh();
-  },
-  [refresh]
-);
+      // PAYMENT
+      try {
+
+        console.log('Vote payment starting...');
+
+        await sendUCT(
+          BUILDER_WALLET,
+          1
+        );
+
+        console.log('Vote payment success');
+
+      } catch (e: any) {
+
+        console.error(
+          'Vote payment failed:',
+          e
+        );
+
+        throw new Error(
+          e?.message || 'Vote payment failed'
+        );
+      }
+
+      // SAVE VOTE
+      await supabase.from('votes').insert({
+        wish_id: wish.id,
+
+        voter_address: voterAddress,
+
+        voter_nametag: voterNametag,
+
+        vote_type: voteType,
+
+        voted_at: Date.now(),
+      });
+
+      // UPDATE COUNTS
+      await supabase
+        .from('wishes')
+        .update({
+          fulfil_count:
+            wish.fulfilCount +
+            (voteType === 'fulfil' ? 1 : 0),
+
+          no_fulfil_count:
+            wish.noFulfilCount +
+            (voteType === 'nofulfil'
+              ? 1
+              : 0),
+        })
+        .eq('id', wish.id);
+
+      await refresh();
+    },
+    [refresh]
+  );
 
   const hasVoted = useCallback(
-    (wishId: string, voterAddress: string) => {
-      const wish = wishes.find(w => w.id === wishId);
-      return wish?.votes.some(v => v.voterAddress === voterAddress) ?? false;
+    (
+      wishId: string,
+      voterAddress: string
+    ) => {
+
+      const wish = wishes.find(
+        w => w.id === wishId
+      );
+
+      return (
+        wish?.votes.some(
+          v => v.voterAddress === voterAddress
+        ) ?? false
+      );
     },
     [wishes]
   );
 
-  return { wishes, createWish, vote, refresh, hasVoted };
+  return {
+    wishes,
+    createWish,
+    vote,
+    refresh,
+    hasVoted,
+  };
 }
