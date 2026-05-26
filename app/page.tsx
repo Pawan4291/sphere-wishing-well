@@ -62,7 +62,7 @@ export default function HomePage() {
   );
 
   const filtered = useMemo<Wish[]>(() => {
-  const addr = wallet.identity?.directAddress;
+  const addr = wallet.identity?.nametag;
   const now = Date.now();
 
   // Only truly active (not expired by time either)
