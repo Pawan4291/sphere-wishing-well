@@ -1,16 +1,26 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Required so Sphere can embed as iframe
+  output: 'export',
+
+  trailingSlash: true,
+
+  images: {
+    unoptimized: true,
+  },
+
   async headers() {
     return [
       {
         source: '/(.*)',
         headers: [
-          // Allow Sphere to iframe your app
-          { key: 'X-Frame-Options', value: 'ALLOWALL' },
+          {
+            key: 'X-Frame-Options',
+            value: 'ALLOWALL',
+          },
           {
             key: 'Content-Security-Policy',
-            value: "frame-ancestors 'self' https://sphere.unicity.network https://unicity-sphere.github.io",
+            value:
+              "frame-ancestors 'self' https://sphere.unicity.network https://unicity-sphere.github.io;",
           },
         ],
       },
