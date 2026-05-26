@@ -77,27 +77,14 @@ export async function sendUCT(
     ? recipientNametag
     : `@${recipientNametag}`;
 
-  // ✅ Look up the REAL coinId hash from the wallet's asset list
-  let realCoinId = 'UCT'; // fallback
-  try {
-    const assets = await clientInstance.query('sphere_getAssets');
-    const uct = Array.isArray(assets)
-      ? assets.find((a: any) => a.symbol === 'UCT')
-      : null;
-    if (uct?.coinId) {
-      realCoinId = uct.coinId; // the real hash e.g. '455ad872...'
-      console.log('Using real UCT coinId:', realCoinId);
-    }
-  } catch (e) {
-    console.warn('Could not fetch assets, using fallback coinId');
-  }
+  console.log('REQUESTING PAYMENT:', { recipient, amount: amountUCT });
 
-  console.log('SENDING UCT:', { recipient, amount: amountUCT, coinId: realCoinId });
-
-  await clientInstance.intent('send', {
-    coinId: realCoinId,  // ✅ use the real hash, not 'UCT'
-    recipient,
+  // ✅ Use payment_request instead of send
+  // This asks the WALLET to initiate a send — which works from inside the iframe
+  await clientInstance.intent('payment_request', {
     amount: amountUCT,
+    coinId: 'UCT',
+    description: `Wishing Well: send ${amountUCT} UCT to ${recipient}`,
   });
 }
 
