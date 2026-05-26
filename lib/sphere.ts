@@ -3,6 +3,8 @@
 import type { WalletIdentity } from '../types/wish';
 import { SPHERE_WALLET_URL } from './constants';
 
+export const BUILDER_NAMETAG = '@pawan429';
+
 let clientInstance: any = null;
 let identityCache: WalletIdentity | null = null;
 
@@ -67,27 +69,23 @@ export async function sendUCT(
     throw new Error('Recipient nametag is missing');
   }
 
-  // Reject DIRECT:// addresses — only nametags work with intent('send')
-  if (recipientNametag.startsWith('DIRECT://') || recipientNametag.includes('://')) {
+  if (recipientNametag.includes('://')) {
     throw new Error(
-      'Invalid recipient: got a DIRECT address instead of a nametag. ' +
-      'Please delete old wishes from Supabase and create new ones.'
+      'Got a DIRECT address instead of a nametag. ' +
+      'Please clear old wishes from Supabase and create new ones.'
     );
   }
 
-  // Ensure nametag has @ prefix
   const recipient = recipientNametag.startsWith('@')
     ? recipientNametag
     : `@${recipientNametag}`;
 
-  const amount = (amountUCT * 1_000_000).toString();
-
-  console.log('SENDING UCT:', { recipient, amount });
+  console.log('SENDING UCT:', { recipient, amount: amountUCT });
 
   await clientInstance.intent('send', {
     coinId: 'UCT',
     recipient,
-    amount,
+    amount: amountUCT,
   });
 }
 
@@ -106,5 +104,3 @@ export async function disconnectWallet() {
     identityCache = null;
   }
 }
-// Add near the top of lib/sphere.ts, after imports:
-export const BUILDER_NAMETAG = '@pawan429';
