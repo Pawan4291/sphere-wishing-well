@@ -87,32 +87,31 @@ export async function sendUCT(
       memo,
     });
 
-    // CURRENT WORKING METHOD
-    const response =
-      await clientInstance.request({
-        method: 'transfer',
-
-        params: {
+    // REAL SDK 0.7.2 METHOD
+    const result =
+      await clientInstance.intent(
+        'transfer',
+        {
           recipient,
+
+          coinId: 'UCT',
 
           amount:
             (
               amount * 1000000
             ).toString(),
 
-          coinId: 'UCT',
-
           memo:
             memo || '',
-        },
-      });
+        }
+      );
 
     console.log(
       'TRANSFER SUCCESS:',
-      response
+      result
     );
 
-    return response;
+    return result;
 
   } catch (e) {
 
