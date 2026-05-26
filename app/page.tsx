@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import type {
   Wish,
   VoteType,
@@ -51,15 +51,6 @@ export default function HomePage() {
     setShowLeaderboard
   ] = useState(false);
 
-  // ✅ FIX 1: ticker so `now` stays fresh and expired wishes auto-move to Resolved
-  const [, forceUpdate] = useState(0);
-  useEffect(() => {
-    const interval = setInterval(() => {
-      forceUpdate(n => n + 1);
-    }, 30_000); // re-check every 30 seconds
-    return () => clearInterval(interval);
-  }, []);
-
   const totalVotes = useMemo(
     () =>
       wishes.reduce(
@@ -71,91 +62,115 @@ export default function HomePage() {
   );
 
   const filtered = useMemo<Wish[]>(() => {
-    const addr = wallet.identity?.directAddress;
-    const now = Date.now();
+  const addr = wallet.identity?.directAddress;
+  const now = Date.now();
 
-    // ✅ FIX 2: activeOnly strictly excludes time-expired wishes
-    const activeOnly = wishes.filter(
-      w => w.status === 'active' && w.expiresAt > now
-    );
+  // Only truly active (not expired by time either)
+  const activeOnly = wishes.filter(
+    w => w.status === 'active' && w.expiresAt > now
+  );
 
-    switch (tab) {
-      case 'hot':
-        return [...activeOnly]
-          .sort((a, b) =>
-            (b.fulfilCount + b.noFulfilCount) -
-            (a.fulfilCount + a.noFulfilCount)
-          );
+  switch (tab) {
+    case 'hot':
+      return [...activeOnly]
+        .sort((a, b) =>
+          (b.fulfilCount + b.noFulfilCount) -
+          (a.fulfilCount + a.noFulfilCount)
+        );
 
-      case 'new':
-        return [...activeOnly]
-          .sort((a, b) => b.createdAt - a.createdAt);
+    case 'new':
+      return [...activeOnly]
+        .sort((a, b) => b.createdAt - a.createdAt);
 
-      case 'expiring':
-        return [...activeOnly]
-          .filter(w => w.expiresAt - now <= 3_600_000)
-          .sort((a, b) => a.expiresAt - b.expiresAt);
+    case 'expiring':
+      return [...activeOnly]
+        .filter(w => w.expiresAt - now <= 3_600_000)
+        .sort((a, b) => a.expiresAt - b.expiresAt);
 
-      case 'mywishes':
-        return addr
-          ? [...wishes]
-              .filter(w => w.creatorAddress === addr)
-              .sort((a, b) => b.createdAt - a.createdAt)
-          : [];
+    case 'mywishes':
+      return addr
+        ? [...wishes]
+            .filter(w => w.creatorAddress === addr)
+            .sort((a, b) => b.createdAt - a.createdAt)
+        : [];
 
-      case 'myvotes':
-        return addr
-          ? [...wishes]
-              .filter(w => w.votes.some(v => v.voterAddress === addr))
-              .sort((a, b) => {
-                const aVote = a.votes.find(v => v.voterAddress === addr);
-                const bVote = b.votes.find(v => v.voterAddress === addr);
-                return (bVote?.votedAt ?? 0) - (aVote?.votedAt ?? 0);
-              })
-          : [];
+    case 'myvotes':
+      return addr
+        ? [...wishes]
+            .filter(w => w.votes.some(v => v.voterAddress === addr))
+            .sort((a, b) => {
+              const aVote = a.votes.find(v => v.voterAddress === addr);
+              const bVote = b.votes.find(v => v.voterAddress === addr);
+              return (bVote?.votedAt ?? 0) - (aVote?.votedAt ?? 0);
+            })
+        : [];
 
-      case 'resolved':
-        return [...wishes]
-          .filter(w =>
-            w.status === 'fulfilled' ||
-            w.status === 'unfulfilled' ||
-            (w.status === 'active' && w.expiresAt <= now)
-          )
-          .sort((a, b) => b.expiresAt - a.expiresAt);
+    case 'resolved':
+      return [...wishes]
+        .filter(w =>
+          w.status === 'fulfilled' ||
+          w.status === 'unfulfilled' ||
+          (w.status === 'active' && w.expiresAt <= now)
+        )
+        .sort((a, b) => b.expiresAt - a.expiresAt);
 
-      default:
-        return wishes;
-    }
-  }, [wishes, tab, wallet.identity, forceUpdate]); // ✅ forceUpdate in deps so memo re-runs
+    default:
+      return wishes;
+  }
+}, [wishes, tab, wallet.identity]);
 
-  const handleCreateWish = async (params: {
-    text: string;
-    category: WishCategory;
-    duration: WishDuration;
-    stakeUCT: number;
-  }) => {
-    if (!wallet.identity?.directAddress) {
-      throw new Error('Connect wallet first');
-    }
-    await createWish({
-      ...params,
-      creatorNametag: wallet.identity.nametag || 'anonymous',
-      creatorAddress: wallet.identity.directAddress,
-    });
-  };
+  const handleCreateWish =
+    async (params: {
+      text: string;
+      category: WishCategory;
+      duration: WishDuration;
+      stakeUCT: number;
+    }) => {
 
-  // ✅ FIX 3: removed duplicate handleVote, keeping only the correct one
-  const handleVote = async (wish: Wish, voteType: VoteType) => {
-    if (!wallet.identity?.directAddress) {
-      throw new Error('Connect wallet first');
-    }
-    await vote({
-      wish,
-      voteType,
-      voterAddress: wallet.identity.directAddress,
-      voterNametag: wallet.identity.nametag || 'anonymous',
-    });
-  };
+      if (
+        !wallet.identity?.nametag
+      ) {
+        throw new Error(
+          'Connect wallet first'
+        );
+      }
+
+      await createWish({
+        ...params,
+
+        creatorNametag:
+          wallet.identity.nametag,
+
+        creatorAddress:
+          wallet.identity.nametag,
+      });
+    };
+
+  const handleVote =
+    async (
+      wish: Wish,
+      voteType: VoteType
+    ) => {
+
+      if (
+        !wallet.identity?.nametag
+      ) {
+        throw new Error(
+          'Connect wallet first'
+        );
+      }
+
+      await vote({
+        wish,
+        voteType,
+
+        voterAddress:
+          wallet.identity.nametag,
+
+        voterNametag:
+          wallet.identity.nametag,
+      });
+    };
 
   const TABS: {
     key: Tab;
@@ -557,7 +572,7 @@ export default function HomePage() {
               key={wish.id}
               wish={wish}
               currentAddress={
-                wallet.identity?.directAddress
+                wallet.identity?.nametag
               }
               onVote={handleVote}
             />
