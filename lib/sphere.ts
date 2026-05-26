@@ -7,6 +7,7 @@ export const BUILDER_NAMETAG = '@pawan429';
 
 let connectClient: any = null;
 let identityCache: WalletIdentity | null = null;
+let uctCoinIdHex: string = 'UCT';
 
 export async function connectWallet(
   silent = false
@@ -60,6 +61,22 @@ export async function connectWallet(
   return { client, identity };
 }
 
+export async function fetchUCTCoinId(): Promise<void> {
+  if (!connectClient) return;
+  try {
+    const assets: any[] = await connectClient.query('sphere_getBalance');
+    if (Array.isArray(assets)) {
+      const uct = assets.find((a: any) => a.symbol === 'UCT');
+      if (uct?.coinId) {
+        uctCoinIdHex = uct.coinId;
+        console.log('UCT coinId fetched:', uctCoinIdHex);
+      }
+    }
+  } catch (e) {
+    console.warn('Could not fetch UCT coinId:', e);
+  }
+}
+
 export async function sendUCT(
   recipient: string,
   amountUCT: number,
@@ -68,19 +85,18 @@ export async function sendUCT(
   if (!connectClient) throw new Error('Wallet not connected');
   if (!recipient) throw new Error('Recipient missing');
 
-  console.log('SENDING UCT via intent:', { to: recipient, amount: amountUCT });
+  console.log('SENDING UCT via intent:', { to: recipient, amount: amountUCT, coinId: uctCoinIdHex });
 
   try {
     await connectClient.intent('send', {
-      to: recipient,        // ← Mario SDK uses "to" not "recipient"
-      amount: amountUCT,    // ← plain number, NOT BigInt string
-      coinId: 'UCT',
+      to: recipient,
+      amount: amountUCT,
+      coinId: uctCoinIdHex,
       ...(memo ? { memo } : {}),
     });
     console.log('UCT send success');
   } catch (e: any) {
     const msg = String(e?.message ?? e ?? '');
-    // SDK throws internally after successful send — ignore this specific crash
     if (
       msg.includes('startsWith') ||
       msg.includes('Cannot read properties of undefined')
