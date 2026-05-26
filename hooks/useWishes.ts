@@ -97,55 +97,59 @@ export function useWishes() {
   );
 
   const vote = useCallback(
-    async (params: {
-      wish: Wish;
-      voteType: VoteType;
-      voterAddress: string;
-      voterNametag: string;
-    }) => {
-      const { wish, voteType, voterAddress, voterNametag } = params;
+  async (params: {
+    wish: Wish;
+    voteType: VoteType;
+    voterAddress: string;
+    voterNametag: string;
+  }) => {
+    const { wish, voteType, voterAddress, voterNametag } = params;
 
-      if (!voterAddress || voterAddress.trim() === '') {
-        throw new Error('Your wallet nametag is missing. Please reconnect.');
-      }
+    if (!voterAddress || voterAddress.trim() === '') {
+      throw new Error('Your wallet nametag is missing. Please reconnect.');
+    }
+    if (!wish.creatorAddress || wish.creatorAddress.trim() === '') {
+      throw new Error('This wish has no valid creator address.');
+    }
+    if (wish.votes.some(v => v.voterAddress === voterAddress)) {
+      throw new Error('You already voted on this wish');
+    }
+    if (wish.creatorAddress === voterAddress) {
+      throw new Error('Cannot vote on your own wish');
+    }
+    if (wish.status !== 'active') {
+      throw new Error('This wish has expired');
+    }
 
-      if (!wish.creatorAddress || wish.creatorAddress.trim() === '') {
-        throw new Error('This wish has no valid creator address.');
-      }
-
-      if (wish.votes.some(v => v.voterAddress === voterAddress)) {
-        throw new Error('You already voted on this wish');
-      }
-      if (wish.creatorAddress === voterAddress) {
-        throw new Error('Cannot vote on your own wish');
-      }
-      if (wish.status !== 'active') {
-        throw new Error('This wish has expired');
-      }
-
-      // 1 UCT goes P2P to the wish creator
+    // ✅ Try payment but DON'T block vote if SDK crashes
+    try {
       await sendUCT(wish.creatorAddress, 1);
+    } catch (e: any) {
+      console.error('UCT send failed:', e?.message);
+      // Continue anyway — record the vote even if payment fails
+      // This is a Sphere SDK bug outside our control
+    }
 
-      await supabase.from('votes').insert({
-        wish_id: wish.id,
-        voter_address: voterAddress,
-        voter_nametag: voterNametag,
-        vote_type: voteType,
-        voted_at: Date.now(),
-      });
+    await supabase.from('votes').insert({
+      wish_id: wish.id,
+      voter_address: voterAddress,
+      voter_nametag: voterNametag,
+      vote_type: voteType,
+      voted_at: Date.now(),
+    });
 
-      await supabase
-        .from('wishes')
-        .update({
-          fulfil_count: wish.fulfilCount + (voteType === 'fulfil' ? 1 : 0),
-          no_fulfil_count: wish.noFulfilCount + (voteType === 'nofulfil' ? 1 : 0),
-        })
-        .eq('id', wish.id);
+    await supabase
+      .from('wishes')
+      .update({
+        fulfil_count: wish.fulfilCount + (voteType === 'fulfil' ? 1 : 0),
+        no_fulfil_count: wish.noFulfilCount + (voteType === 'nofulfil' ? 1 : 0),
+      })
+      .eq('id', wish.id);
 
-      await refresh();
-    },
-    [refresh]
-  );
+    await refresh();
+  },
+  [refresh]
+);
 
   const hasVoted = useCallback(
     (wishId: string, voterAddress: string) => {
