@@ -67,17 +67,23 @@ export async function sendUCT(
     throw new Error('Recipient nametag is missing');
   }
 
-  // Ensure nametag has @ prefix — SDK expects "@username"
+  // Reject DIRECT:// addresses — only nametags work with intent('send')
+  if (recipientNametag.startsWith('DIRECT://') || recipientNametag.includes('://')) {
+    throw new Error(
+      'Invalid recipient: got a DIRECT address instead of a nametag. ' +
+      'Please delete old wishes from Supabase and create new ones.'
+    );
+  }
+
+  // Ensure nametag has @ prefix
   const recipient = recipientNametag.startsWith('@')
     ? recipientNametag
     : `@${recipientNametag}`;
 
-  // Amount as string of base units (1 UCT = 1,000,000 base units on Unicity testnet)
   const amount = (amountUCT * 1_000_000).toString();
 
   console.log('SENDING UCT:', { recipient, amount });
 
-  // ✅ CORRECT: use intent('send'), NOT clientInstance.payments.send()
   await clientInstance.intent('send', {
     coinId: 'UCT',
     recipient,
