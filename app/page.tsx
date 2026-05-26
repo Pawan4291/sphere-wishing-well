@@ -27,7 +27,8 @@ export default function HomePage() {
   );
 
   const filtered = useMemo<Wish[]>(() => {
-    const addr = wallet.identity?.directAddress;
+    // ✅ Use nametag for identity matching, NOT directAddress
+    const addr = wallet.identity?.nametag;
     switch (tab) {
       case 'hot':
         return [...wishes]
@@ -58,31 +59,33 @@ export default function HomePage() {
     }
   }, [wishes, tab, wallet.identity]);
 
+  // ✅ Use nametag as creatorAddress — NOT directAddress
   const handleCreateWish = async (params: {
     text: string;
     category: WishCategory;
     duration: WishDuration;
     stakeUCT: number;
   }) => {
-    if (!wallet.identity?.directAddress) {
+    if (!wallet.identity?.nametag) {
       throw new Error('Connect wallet first');
     }
     await createWish({
       ...params,
-      creatorNametag: wallet.identity.nametag || 'anonymous',
-      creatorAddress: wallet.identity.directAddress,
+      creatorNametag: wallet.identity.nametag,
+      creatorAddress: wallet.identity.nametag, // ✅ nametag e.g. "beastboy"
     });
   };
 
+  // ✅ Use nametag as voterAddress — NOT directAddress
   const handleVote = async (wish: Wish, voteType: VoteType) => {
-    if (!wallet.identity?.directAddress) {
+    if (!wallet.identity?.nametag) {
       throw new Error('Connect wallet first');
     }
     await vote({
       wish,
       voteType,
-      voterAddress: wallet.identity.directAddress,
-      voterNametag: wallet.identity.nametag || 'anonymous',
+      voterAddress: wallet.identity.nametag, // ✅ nametag e.g. "beastboy"
+      voterNametag: wallet.identity.nametag,
     });
   };
 
@@ -169,7 +172,7 @@ export default function HomePage() {
                   <WishCard
                     key={wish.id}
                     wish={wish}
-                    currentAddress={wallet.identity?.directAddress}
+                    currentAddress={wallet.identity?.nametag} // ✅ nametag
                     onVote={handleVote}
                   />
                 ))}
@@ -214,9 +217,7 @@ export default function HomePage() {
         onSubmit={handleCreateWish}
         creatorNametag={wallet.identity?.nametag ?? ''}
       />
-    {/* ... all your existing JSX ... */}
 
-      {/* Builder credit — identifies app creator for airdrops/rewards */}
       <footer className="text-center py-6 mt-8 border-t border-slate-800/60">
         <p className="text-xs text-slate-600">
           Built on{' '}
@@ -228,6 +229,6 @@ export default function HomePage() {
           </span>
         </p>
       </footer>
-    </div>  // ← this is the closing div that was already there
+    </div>
   );
 }
