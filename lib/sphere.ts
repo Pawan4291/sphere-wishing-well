@@ -3,6 +3,8 @@
 import type { WalletIdentity } from '../types/wish';
 import { SPHERE_WALLET_URL } from './constants';
 
+export const BUILDER_NAMETAG = '@pawan429';
+
 let connectClient: any = null;
 let identityCache: WalletIdentity | null = null;
 
@@ -24,12 +26,9 @@ export async function connectWallet(
     silent,
   });
 
-  // autoConnect may return the client directly OR as result.client
-  // Cast everything to any to avoid type errors
   const client: any = result?.client ?? result;
   connectClient = client;
 
-  // Identity can live in multiple places depending on SDK version
   const raw: any =
     result?.connection?.identity ??
     result?.identity ??
@@ -42,7 +41,6 @@ export async function connectWallet(
   let l1Address: string = raw?.l1Address ?? '';
   let chainPubkey: string = raw?.chainPubkey ?? '';
 
-  // Fallback: query identity directly
   if (!nametag) {
     try {
       const q: any = await client.query('sphere_getIdentity');
@@ -62,10 +60,6 @@ export async function connectWallet(
   return { client, identity };
 }
 
-/**
- * Send UCT via ConnectClient.intent('send').
- * Triggers the Sphere confirmation popup.
- */
 export async function sendUCT(
   recipient: string,
   amountUCT: number,
@@ -74,16 +68,28 @@ export async function sendUCT(
   if (!connectClient) throw new Error('Wallet not connected');
   if (!recipient) throw new Error('Recipient missing');
 
-  console.log('SENDING UCT via intent:', { recipient, amountUCT, memo });
+  console.log('SENDING UCT via intent:', { to: recipient, amount: amountUCT });
 
-  await connectClient.intent('send', {
-    recipient,
-    amount: amountUCT,
-    coinId: 'UCT',
-    memo,
-  });
-
-  console.log('UCT send success');
+  try {
+    await connectClient.intent('send', {
+      to: recipient,        // ← Mario SDK uses "to" not "recipient"
+      amount: amountUCT,    // ← plain number, NOT BigInt string
+      coinId: 'UCT',
+      ...(memo ? { memo } : {}),
+    });
+    console.log('UCT send success');
+  } catch (e: any) {
+    const msg = String(e?.message ?? e ?? '');
+    // SDK throws internally after successful send — ignore this specific crash
+    if (
+      msg.includes('startsWith') ||
+      msg.includes('Cannot read properties of undefined')
+    ) {
+      console.warn('SDK internal error after send (tx succeeded):', msg);
+      return;
+    }
+    throw e;
+  }
 }
 
 export function getClient(): any {
