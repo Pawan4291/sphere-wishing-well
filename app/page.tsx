@@ -1,5 +1,11 @@
 'use client';
 
+import WishScoreHistory
+from '../components/WishScoreHistory';
+
+import { useWishScoreLeaderboard }
+from '../hooks/useWishScoreLeaderboard';
+
 import { useState, useMemo } from 'react';
 import type {
   Wish,
@@ -36,10 +42,13 @@ export default function HomePage() {
   } = useWishes();
 
   const {
-    wishCreators,
-    voters,
-    wishScoreUsers
-  } = useLeaderboard(wishes);
+  wishCreators,
+  voters,
+} = useLeaderboard(wishes);
+
+const {
+  wishScoreUsers
+} = useWishScoreLeaderboard();
 
   const [tab, setTab] =
     useState<Tab>('hot');
@@ -51,6 +60,11 @@ export default function HomePage() {
     showLeaderboard,
     setShowLeaderboard
   ] = useState(false);
+
+  const [
+  showWishScoreHistory,
+  setShowWishScoreHistory
+] = useState(false);
 
   const totalVotes = useMemo(
     () =>
@@ -484,6 +498,39 @@ export default function HomePage() {
             "
           >
             🏆 Leaderboard
+
+            <button
+  onClick={() =>
+    setShowWishScoreHistory(
+      true
+    )
+  }
+
+  className="
+    px-5 py-3
+
+    rounded-2xl
+
+    text-sm md:text-base
+    font-bold
+
+    whitespace-nowrap
+
+    border
+    border-white/5
+
+    bg-white/[0.04]
+
+    text-slate-300
+
+    hover:border-orange-400/30
+    hover:bg-orange-500/5
+
+    transition-all
+  "
+>
+  ⭐ WishScore
+</button>
           </button>
 
         </div>
@@ -771,6 +818,22 @@ export default function HomePage() {
           ''
         }
       />
+
+<WishScoreHistory
+  open={
+    showWishScoreHistory
+  }
+
+  onClose={() =>
+    setShowWishScoreHistory(
+      false
+    )
+  }
+
+  address={
+    wallet.identity?.nametag
+  }
+/>
 
     </div>
   );

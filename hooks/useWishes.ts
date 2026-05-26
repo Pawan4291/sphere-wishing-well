@@ -31,6 +31,84 @@ export function useWishes() {
       .from('votes')
       .select('*');
 
+const now = Date.now();
+
+// AUTO RESOLVE EXPIRED WISHES
+for (const w of wishesData ?? []) {
+
+  if (
+    w.status === 'active' &&
+    w.expires_at <= now
+  ) {
+
+    let newStatus =
+      'unfulfilled';
+
+    if (
+      w.fulfil_count >
+      w.no_fulfil_count
+    ) {
+
+      newStatus =
+        'fulfilled';
+    }
+
+    await supabase
+      .from('wishes')
+      .update({
+        status: newStatus,
+      })
+      .eq('id', w.id);
+
+const wishVotes =
+  (votesData ?? []).filter(
+    (v: any) => v.wish_id === w.id
+  );
+
+// TIE
+if (
+  w.fulfil_count ===
+  w.no_fulfil_count
+) {
+
+  for (const v of wishVotes) {
+
+    await addWishScore({
+      address: v.voter_address,
+      nametag: v.voter_nametag,
+      points: 2,
+      reason: 'Tie vote',
+      wishId: w.id,
+    });
+  }
+
+} else {
+
+  const winningSide =
+    w.fulfil_count >
+    w.no_fulfil_count
+      ? 'fulfil'
+      : 'nofulfil';
+
+  for (const v of wishVotes) {
+
+    if (v.vote_type === winningSide) {
+
+      await addWishScore({
+        address: v.voter_address,
+        nametag: v.voter_nametag,
+        points: 12,
+        reason: 'Correct prediction',
+        wishId: w.id,
+      });
+    }
+  }
+}
+
+  }
+}
+
+
     const mapped: Wish[] = (wishesData ?? []).map((w: any) => {
       const votes = (votesData ?? [])
         .filter((v: any) => v.wish_id === w.id)
@@ -207,6 +285,10 @@ export function useWishes() {
           no_fulfil_count: wish.noFulfilCount + (voteType === 'nofulfil' ? 1 : 0),
         })
         .eq('id', wish.id);
+
+
+
+        
 
       await refresh();
     },
