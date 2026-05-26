@@ -3,7 +3,6 @@
 import type { WalletIdentity } from '../types/wish';
 import { SPHERE_WALLET_URL } from './constants';
 
-// Your builder identity — hardcoded so team always sees who built this
 export const BUILDER_NAMETAG = '@pawan429';
 
 let clientInstance: any = null;
@@ -17,14 +16,15 @@ export async function connectWallet(
   );
 
   const result = await autoConnect({
-  dapp: {
-    name: 'Sphere Wishing Well',
-    description: 'Cast wishes, vote with your wallet, see community predictions come true.',
-    url: typeof window !== 'undefined' ? window.location.origin : '',
-  } as any,
-  walletUrl: SPHERE_WALLET_URL,
-  silent,
-});
+    dapp: {
+      name: 'Sphere Wishing Well',
+      description: 'Cast wishes, vote with your wallet, see community predictions come true.',
+      url: typeof window !== 'undefined' ? window.location.origin : '',
+      requestedPermissions: ['transfer'],
+    } as any,
+    walletUrl: SPHERE_WALLET_URL,
+    silent,
+  });
 
   clientInstance = result.client;
 
@@ -49,13 +49,7 @@ export async function connectWallet(
     }
   }
 
-  const identity: WalletIdentity = {
-    nametag,
-    directAddress,
-    l1Address,
-    chainPubkey,
-  };
-
+  const identity: WalletIdentity = { nametag, directAddress, l1Address, chainPubkey };
   identityCache = identity;
   console.log('FINAL IDENTITY:', identity);
   return { client: result.client, identity };
@@ -65,17 +59,10 @@ export async function sendUCT(
   recipientAddress: string,
   amountUCT: number
 ): Promise<void> {
-  if (!clientInstance) {
-    throw new Error('Wallet not connected');
-  }
-  if (!recipientAddress || recipientAddress.trim() === '') {
-    throw new Error('Recipient address is missing');
-  }
+  if (!clientInstance) throw new Error('Wallet not connected');
+  if (!recipientAddress || recipientAddress.trim() === '') throw new Error('Recipient missing');
 
-  const amount = (
-    BigInt(amountUCT) * BigInt('1000000000000000000')
-  ).toString();
-
+  const amount = (BigInt(amountUCT) * BigInt('1000000000000000000')).toString();
   console.log('SENDING UCT:', { recipient: recipientAddress, amount });
 
   try {
@@ -86,9 +73,8 @@ export async function sendUCT(
     });
   } catch (e: any) {
     const msg = String(e?.message ?? e ?? '');
-    // SDK internal crash after successful send — ignore it
     if (msg.includes('startsWith') || msg.includes('Cannot read properties of undefined')) {
-      console.warn('SDK internal error (tx likely succeeded):', msg);
+      console.warn('SDK internal error after send (tx succeeded):', msg);
       return;
     }
     throw e;
