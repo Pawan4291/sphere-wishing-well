@@ -73,7 +73,8 @@ export function useWishes() {
       const now = Date.now();
 
       // Stake goes to creator's OWN wallet (skin in the game mechanic)
-      await sendUCT(params.creatorAddress, params.stakeUCT);
+      // AFTER — catches SDK crash, continues anyway:
+try { await sendUCT(params.creatorAddress, params.stakeUCT); } catch (e) { console.warn('UCT send failed (SDK bug):', e); }
 
       const id = crypto.randomUUID();
       await supabase.from('wishes').insert({
@@ -123,7 +124,8 @@ export function useWishes() {
 
     // ✅ Try payment but DON'T block vote if SDK crashes
     try {
-      await sendUCT(wish.creatorAddress, 1);
+      // AFTER:
+try { await sendUCT(wish.creatorAddress, 1); } catch (e) { console.warn('UCT send failed (SDK bug):', e); }
     } catch (e: any) {
       console.error('UCT send failed:', e?.message);
       // Continue anyway — record the vote even if payment fails
