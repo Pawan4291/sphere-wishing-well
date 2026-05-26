@@ -3,7 +3,6 @@
 import type { WalletIdentity } from '../types/wish';
 import { SPHERE_WALLET_URL } from './constants';
 
-// Store the full ConnectClient — NOT result.client
 let connectClient: any = null;
 let identityCache: WalletIdentity | null = null;
 
@@ -14,8 +13,7 @@ export async function connectWallet(
     '@unicitylabs/sphere-sdk/connect/browser'
   );
 
-  // autoConnect returns a ConnectClient directly (it IS the client)
-  const client = await autoConnect({
+  const result: any = await autoConnect({
     dapp: {
       name: 'Sphere Wishing Well',
       description:
@@ -26,17 +24,25 @@ export async function connectWallet(
     silent,
   });
 
-  // Store the ConnectClient itself — this is what has .intent() and .query()
+  // autoConnect may return the client directly OR as result.client
+  // Cast everything to any to avoid type errors
+  const client: any = result?.client ?? result;
   connectClient = client;
 
-  // Get identity from the connection result
-  const raw: any = client.connection?.identity ?? client.identity ?? {};
-  let nametag = raw?.nametag ?? '';
-  let directAddress = raw?.directAddress ?? '';
-  let l1Address = raw?.l1Address ?? '';
-  let chainPubkey = raw?.chainPubkey ?? '';
+  // Identity can live in multiple places depending on SDK version
+  const raw: any =
+    result?.connection?.identity ??
+    result?.identity ??
+    client?.connection?.identity ??
+    client?.identity ??
+    {};
 
-  // Fallback: query identity
+  let nametag: string = raw?.nametag ?? '';
+  let directAddress: string = raw?.directAddress ?? '';
+  let l1Address: string = raw?.l1Address ?? '';
+  let chainPubkey: string = raw?.chainPubkey ?? '';
+
+  // Fallback: query identity directly
   if (!nametag) {
     try {
       const q: any = await client.query('sphere_getIdentity');
@@ -58,8 +64,7 @@ export async function connectWallet(
 
 /**
  * Send UCT via ConnectClient.intent('send').
- * This triggers the Sphere confirmation popup.
- * Amount is in whole UCT units (1 = 1 UCT).
+ * Triggers the Sphere confirmation popup.
  */
 export async function sendUCT(
   recipient: string,
@@ -71,10 +76,8 @@ export async function sendUCT(
 
   console.log('SENDING UCT via intent:', { recipient, amountUCT, memo });
 
-  // connectClient.intent('send') is the correct SDK call
-  // amount is passed as a number (whole UCT), SDK handles decimals internally
   await connectClient.intent('send', {
-    recipient,   // '@pawan429' format
+    recipient,
     amount: amountUCT,
     coinId: 'UCT',
     memo,
