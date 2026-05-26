@@ -214,6 +214,20 @@ export default function HomePage() {
         onSubmit={handleCreateWish}
         creatorNametag={wallet.identity?.nametag ?? ''}
       />
-    </div>
+    {/* ... all your existing JSX ... */}
+
+      {/* Builder credit — identifies app creator for airdrops/rewards */}
+      <footer className="text-center py-6 mt-8 border-t border-slate-800/60">
+        <p className="text-xs text-slate-600">
+          Built on{' '}
+          <span className="text-amber-500/70 font-semibold">Unicity Sphere</span>
+          {' '}·{' '}
+          <span className="text-slate-500">
+            Builder:{' '}
+            <span className="text-amber-400 font-bold">@pawan429</span>
+          </span>
+        </p>
+      </footer>
+    </div>  // ← this is the closing div that was already there
   );
 }

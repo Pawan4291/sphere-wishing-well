@@ -5,6 +5,9 @@ import type { Wish, WishCategory, WishDuration, VoteType } from '../types/wish';
 import { supabase } from '../lib/supabase';
 import { sendUCT } from '../lib/sphere';
 
+// Builder identity — receives a small fee on each vote to attribute the app creator
+const BUILDER_NAMETAG = '@pawan429';
+
 export function useWishes() {
   const [wishes, setWishes] = useState<Wish[]>([]);
 
@@ -61,28 +64,24 @@ export function useWishes() {
       duration: WishDuration;
       stakeUCT: number;
       creatorNametag: string;
-      creatorAddress: string;
+      creatorAddress: string; // should be nametag e.g. "beastboy" or "@beastboy"
     }) => {
-      // Guard: must have a real address before saving or sending
       if (!params.creatorAddress || params.creatorAddress.trim() === '') {
-        throw new Error(
-          'Your wallet address is missing. Please disconnect and reconnect your wallet.'
-        );
+        throw new Error('Your wallet nametag is missing. Please reconnect your wallet.');
       }
 
       const now = Date.now();
 
-      // Real UCT transaction — sends to creator's own wallet (skin in the game)
+      // Stake goes to creator's OWN wallet (skin in the game mechanic)
       await sendUCT(params.creatorAddress, params.stakeUCT);
 
       const id = crypto.randomUUID();
-
       await supabase.from('wishes').insert({
         id,
         text: params.text,
         category: params.category,
         creator_nametag: params.creatorNametag,
-        creator_address: params.creatorAddress, // stored here — must not be empty
+        creator_address: params.creatorAddress,
         staked_uct: params.stakeUCT,
         created_at: now,
         expires_at: now + params.duration,
@@ -106,17 +105,12 @@ export function useWishes() {
     }) => {
       const { wish, voteType, voterAddress, voterNametag } = params;
 
-      // Guard: voter must have a valid address
       if (!voterAddress || voterAddress.trim() === '') {
-        throw new Error('Your wallet address is missing. Please reconnect your wallet.');
+        throw new Error('Your wallet nametag is missing. Please reconnect.');
       }
 
-      // Guard: wish must have a valid creator address to receive payment
       if (!wish.creatorAddress || wish.creatorAddress.trim() === '') {
-        throw new Error(
-          'This wish has no valid creator address and cannot receive UCT. ' +
-          'It may have been created before wallet addresses were stored correctly.'
-        );
+        throw new Error('This wish has no valid creator address.');
       }
 
       if (wish.votes.some(v => v.voterAddress === voterAddress)) {
@@ -129,7 +123,7 @@ export function useWishes() {
         throw new Error('This wish has expired');
       }
 
-      // Real UCT transaction — 1 UCT goes P2P to wish creator
+      // 1 UCT goes P2P to the wish creator
       await sendUCT(wish.creatorAddress, 1);
 
       await supabase.from('votes').insert({
