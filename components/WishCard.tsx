@@ -554,7 +554,7 @@ export default function WishCard({
               text-slate-400
             "
           >
-            Your wish · 1 UCT casting fee paid · waiting for community votes
+            Community is deciding the fate of this wish
           </div>
         )}
 

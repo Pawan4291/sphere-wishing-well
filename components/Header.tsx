@@ -53,12 +53,7 @@ tracking-tight
   Community prediction market on Unicity Sphere
 </p>
 
-            <p className="
-text-sm
-text-slate-400
-leading-none
-mt-1
-">on Unicity Sphere</p>
+        
           </div>
         </div>
 

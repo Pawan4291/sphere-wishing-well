@@ -154,17 +154,24 @@ export default function HomePage() {
         totalVotes={totalVotes}
       />
 
-      <main className="relative max-w-4xl mx-auto px-4 py-6">
+      <main className="relative max-w-5xl mx-auto px-4 py-6">
 
         <div className="flex flex-wrap gap-2 mb-6">
           {TABS.map(t => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors
-                ${tab === t.key
-                  ? 'bg-amber-500 text-black'
-                  : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+              className={`
+px-5 py-2.5
+rounded-2xl
+text-sm font-semibold
+backdrop-blur-md
+border border-slate-800
+transition-all duration-200
+${tab === t.key
+  ? 'bg-amber-500 text-black border-amber-400 shadow-lg shadow-amber-500/20'
+  : 'bg-slate-900/70 text-slate-400 hover:text-white hover:border-slate-600'}
+`}
             >
               {t.label}
             </button>
@@ -172,14 +179,36 @@ export default function HomePage() {
 
           <button
             onClick={() => setShowLeaderboard(true)}
-            className="px-4 py-2 rounded-full text-sm font-semibold bg-slate-800 text-slate-400 hover:text-white transition-colors"
+            className="
+px-5 py-2.5
+rounded-2xl
+text-sm font-semibold
+bg-slate-900/70
+text-slate-400
+border border-slate-800
+backdrop-blur-md
+hover:text-white
+hover:border-slate-600
+transition-all duration-200
+"
           >
             🏆 Leaderboard
           </button>
 
           <button
             onClick={() => setShowWishScore(true)}
-            className="px-4 py-2 rounded-full text-sm font-semibold bg-slate-800 text-slate-400 hover:text-white transition-colors"
+            className="
+px-5 py-2.5
+rounded-2xl
+text-sm font-semibold
+bg-slate-900/70
+text-slate-400
+border border-slate-800
+backdrop-blur-md
+hover:text-white
+hover:border-slate-600
+transition-all duration-200
+"
           >
             ⭐ WishScore
           </button>
@@ -209,15 +238,31 @@ export default function HomePage() {
   />
 )}
 
+<div className="text-center py-6 text-xs text-slate-600">
+  Built by @pawan429 • Powered by WishScore • Unicity Sphere
+</div>
+
       </main>
 
       {/* Floating Button */}
       {wallet.isConnected && (
         <button
           onClick={() => setShowCreate(true)}
-          className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-amber-500 text-black text-2xl"
+          className="
+fixed bottom-6 right-6
+px-5 py-4
+rounded-2xl
+bg-amber-500
+hover:bg-amber-400
+text-black
+font-bold
+shadow-2xl
+shadow-amber-500/20
+transition-all
+z-50
+"
         >
-          +
+          ✨ Cast Wish
         </button>
       )}
 
