@@ -61,8 +61,15 @@ export default function WishCard({
     currentAddress ===
     wish.creatorAddress;
 
+  // ✅ FIX 1: check both status AND expiry time
   const isActive =
-    wish.status === 'active';
+    wish.status === 'active' &&
+    wish.expiresAt > Date.now();
+
+  // ✅ FIX 2: show EXPIRED badge for wishes that expired but DB hasn't updated yet
+  const isExpiredButNotResolved =
+    wish.status === 'active' &&
+    wish.expiresAt <= Date.now();
 
   const handleVote = async (
     voteType: VoteType
@@ -160,6 +167,22 @@ export default function WishCard({
           "
         >
           ✕ NOT FULFILLED
+        </span>
+      )
+      // ✅ FIX 2 continued: show EXPIRED badge while DB catches up
+      : isExpiredButNotResolved
+      ? (
+        <span
+          className="
+            px-3 py-1 rounded-full
+            text-[10px] md:text-xs
+            font-bold tracking-wide
+            bg-slate-500/15
+            text-slate-400
+            border border-slate-500/30
+          "
+        >
+          EXPIRED
         </span>
       )
       : null;
@@ -272,7 +295,7 @@ export default function WishCard({
             mb-4
           "
         >
-          “{wish.text}”
+          "{wish.text}"
         </h2>
 
         {/* creator */}
