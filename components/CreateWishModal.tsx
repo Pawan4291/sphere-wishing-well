@@ -59,7 +59,12 @@ export default function CreateWishModal({
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4 pb-4 sm:pb-0">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative w-full max-w-lg bg-slate-900 border border-slate-700/60 rounded-3xl p-6 shadow-2xl">
+      <div className="relative w-full max-w-2xl bg-gradient-to-b
+from-[#071226]
+to-[#040b18]
+border border-[#1f2d4d]
+rounded-[32px]
+p-7 shadow-2xl">
         <div className="flex items-center justify-between mb-5">
           <div>
             <h2 className="text-xl font-bold text-white">🪙 Cast a Wish</h2>
@@ -74,6 +79,50 @@ export default function CreateWishModal({
           <button onClick={onClose} className="text-slate-500 hover:text-white text-xl">✕</button>
         </div>
 
+<div
+  className="
+    mb-5 rounded-2xl
+    border border-amber-500/20
+    bg-amber-500/5
+    p-4
+  "
+>
+  <h3
+    className="
+      text-sm font-bold
+      text-amber-300
+      mb-2
+    "
+  >
+    How Sphere Wishing Well Works
+  </h3>
+
+  <div
+    className="
+      space-y-2
+      text-xs text-slate-400
+      leading-relaxed
+    "
+  >
+    <p>
+      ✨ Create a prediction or wish
+    </p>
+
+    <p>
+      🗳 Community votes if it will happen
+    </p>
+
+    <p>
+      🏆 Accurate users earn WishScore reputation
+    </p>
+
+    <p>
+      ⏳ When timer ends, result becomes permanent
+    </p>
+  </div>
+</div>
+
+
         {/* Wish text */}
         <div className="mb-4">
           <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 block">
@@ -82,13 +131,45 @@ export default function CreateWishModal({
           <textarea
             value={text}
             onChange={e => setText(e.target.value)}
-            placeholder="India will win today's match..."
+            placeholder="Bitcoin will cross $150k this month..."
             maxLength={200}
-            rows={3}
+            rows={5}
             className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm
               placeholder:text-slate-600 focus:outline-none focus:border-amber-500/60 resize-none"
           />
-          <p className="text-xs text-slate-600 text-right mt-1">{text.length}/200</p>
+          
+        <p className="text-xs text-slate-600 text-right mt-1">{text.length}/200</p>
+        {text.trim() && (
+  <div
+    className="
+      mt-4 rounded-2xl
+      border border-[#1f2d4d]
+      bg-[#08111f]
+      p-4
+    "
+  >
+    <div
+      className="
+        text-[10px]
+        uppercase tracking-[0.25em]
+        text-slate-500
+        mb-2
+      "
+    >
+      Preview
+    </div>
+
+    <div
+      className="
+        text-white
+        text-lg font-bold
+        leading-relaxed
+      "
+    >
+      "{text}"
+    </div>
+  </div>
+)}
         </div>
 
         {/* Category */}

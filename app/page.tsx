@@ -1,5 +1,6 @@
 'use client';
 
+import OnboardingModal from '../components/OnboardingModal';
 import { useState, useMemo } from 'react';
 import type { Wish, VoteType, WishCategory, WishDuration } from '../types/wish';
 import { useSphereWallet } from '../hooks/useSphereWallet';
@@ -13,6 +14,8 @@ import Leaderboard from '../components/Leaderboard';
 type Tab = 'hot' | 'new' | 'expiring' | 'mine' | 'myvotes' | 'resolved' | 'leaderboard' | 'wishscore';
 
 export default function HomePage() {
+  const [showOnboarding, setShowOnboarding] =
+  useState(true);
   const wallet = useSphereWallet();
   const { wishes, createWish, vote } = useWishes();
   const { wishCreators, voters, wishScoreUsers } = useLeaderboard(wishes);
@@ -197,6 +200,15 @@ export default function HomePage() {
             ))
           )}
         </div>
+
+{showOnboarding && (
+  <OnboardingModal
+    onClose={() =>
+      setShowOnboarding(false)
+    }
+  />
+)}
+
       </main>
 
       {/* Floating Button */}

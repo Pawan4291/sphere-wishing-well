@@ -116,3 +116,17 @@ body {
 .animate-soft-pulse {
   animation: softPulse 2s ease-in-out infinite;
 }
+html {
+  scroll-behavior: smooth;
+}
+
+button {
+  transition:
+    transform 0.18s ease,
+    opacity 0.18s ease,
+    background 0.18s ease;
+}
+
+button:active {
+  transform: scale(0.97);
+}

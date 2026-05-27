@@ -48,6 +48,11 @@ text-2xl
 leading-none
 tracking-tight
 ">Wishing Well</h1>
+
+<p className="text-xs text-slate-500 mt-1">
+  Community prediction market on Unicity Sphere
+</p>
+
             <p className="
 text-sm
 text-slate-400

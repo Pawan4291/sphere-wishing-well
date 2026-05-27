@@ -196,9 +196,9 @@ export default function WishCard({
         bg-gradient-to-b
         from-[#071226]
         to-[#040b18]
-        p-5 md:p-7
+        p-6 md:p-8
         transition-all duration-300
-        hover:scale-[1.01]
+        hover:-translate-y-1
         hover:border-amber-400/30
         ${statusGlow}
         ${statusBorder}
@@ -238,7 +238,7 @@ export default function WishCard({
             className="
               w-10 h-10 rounded-2xl
               flex items-center justify-center
-              bg-amber-500/10
+              bg-amber-500/15 shadow-[0_0_20px_rgba(245,158,11,0.12)]
               border border-amber-500/20
               text-lg
             "
@@ -288,7 +288,7 @@ export default function WishCard({
         <h2
           className="
             text-white
-            text-lg md:text-2xl
+            text-2xl md:text-4xl
             font-bold
             leading-relaxed
             tracking-tight
@@ -296,6 +296,9 @@ export default function WishCard({
           "
         >
           "{wish.text}"
+          <p className="text-slate-500 text-sm mb-6 leading-relaxed">
+  Community predicts whether this wish will become reality before the timer ends.
+</p>
         </h2>
 
         {/* creator */}
