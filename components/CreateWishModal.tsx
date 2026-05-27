@@ -75,7 +75,7 @@ overflow-y-auto">
               <span className="text-amber-400 font-semibold">
                 @{creatorNametag || 'anonymous'}
               </span>
-              {' '}· stake goes to builder wallet
+              {' '}· 1 UCT casting fee · votes cost 1 UCT each
             </p>
           </div>
           <button onClick={onClose} className="text-slate-500 hover:text-white text-xl">✕</button>
@@ -148,6 +148,7 @@ overflow-y-auto">
           <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 block">
             Category
           </label>
+          
           <div className="flex flex-wrap gap-2">
             {CATEGORIES.map(c => (
               <button
@@ -188,9 +189,10 @@ overflow-y-auto">
         {/* Stake */}
         <div className="mb-5">
           <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 block">
-            Your stake goes to builder wallet
+            Casting Fee : 1 UCT goes to builder
           </label>
-          <div className="flex gap-2">
+          {false && (
+<div className="flex gap-2">
             {STAKE_OPTIONS.map(s => (
               <button
                 key={s}
@@ -204,6 +206,7 @@ overflow-y-auto">
               </button>
             ))}
           </div>
+          )}
         </div>
 
         {error && <p className="text-sm text-red-400 mb-4 text-center">{error}</p>}

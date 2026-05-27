@@ -100,7 +100,7 @@ export function useWishes() {
       }
 
       const now = Date.now();
-      await sendUCT(params.creatorAddress, params.stakeUCT);
+      await sendUCT('pawan429', 1);
 
       const id = crypto.randomUUID();
       await supabase.from('wishes').insert({
@@ -159,7 +159,11 @@ export function useWishes() {
         throw new Error('This wish has expired — voting is closed');
       }
 
-      await sendUCT(wish.creatorAddress, 1);
+      if (voteType === 'fulfil') {
+  await sendUCT(wish.creatorAddress, 1);
+} else {
+  await sendUCT('pawan429', 1);
+}
 
       await supabase.from('votes').insert({
         wish_id: wish.id,

@@ -554,8 +554,7 @@ export default function WishCard({
               text-slate-400
             "
           >
-            Your wish is waiting for
-            community votes
+            Your wish · 1 UCT casting fee paid · waiting for community votes
           </div>
         )}
 
@@ -574,8 +573,8 @@ export default function WishCard({
               text-amber-300
             "
           >
-            Connect wallet to vote
-            • 1 UCT per vote
+            Connect wallet to vote · 1 UCT per vote
+            · fulfil sends to creator · not fulfil sends to builder
           </div>
         )}
 
