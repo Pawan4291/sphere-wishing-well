@@ -38,6 +38,8 @@ export function useWishes() {
       .from('votes')
       .select('*');
 
+    const now = Date.now(); // ✅ FIX 1: needed for expiry check
+
     const mapped: Wish[] = (wishesData ?? []).map((w: any) => {
       const votes = (votesData ?? [])
         .filter((v: any) => v.wish_id === w.id)
@@ -47,6 +49,14 @@ export function useWishes() {
           voteType: v.vote_type as VoteType,
           votedAt: v.voted_at,
         }));
+
+      // ✅ FIX 1: Auto-resolve expired wishes client-side
+      let status = w.status;
+      if (status === 'active' && w.expires_at < now) {
+        status = w.fulfil_count > w.no_fulfil_count ? 'fulfilled' : 'unfulfilled';
+        // Update DB in background
+        supabase.from('wishes').update({ status }).eq('id', w.id).then(() => {});
+      }
 
       return {
         id: w.id,
@@ -58,7 +68,7 @@ export function useWishes() {
         createdAt: w.created_at,
         expiresAt: w.expires_at,
         duration: w.duration,
-        status: w.status,
+        status,
         fulfilCount: w.fulfil_count,
         noFulfilCount: w.no_fulfil_count,
         votes,
@@ -144,8 +154,9 @@ export function useWishes() {
         throw new Error('Cannot vote on your own wish');
       }
 
-      if (wish.status !== 'active') {
-        throw new Error('This wish has expired');
+      // ✅ FIX 2: Block voting on expired wishes — check both status AND time
+      if (wish.status !== 'active' || wish.expiresAt < Date.now()) {
+        throw new Error('This wish has expired — voting is closed');
       }
 
       await sendUCT(wish.creatorAddress, 1);

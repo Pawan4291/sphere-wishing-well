@@ -15,12 +15,10 @@ type Tab = 'hot' | 'new' | 'expiring' | 'mine' | 'myvotes' | 'resolved' | 'leade
 export default function HomePage() {
   const wallet = useSphereWallet();
   const { wishes, createWish, vote } = useWishes();
-  // ✅ FIX: destructure wishScoreUsers
   const { wishCreators, voters, wishScoreUsers } = useLeaderboard(wishes);
 
   const [tab, setTab] = useState<Tab>('hot');
   const [showCreate, setShowCreate] = useState(false);
-  // ✅ FIX: leaderboard/wishscore modal state
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showWishScore, setShowWishScore] = useState(false);
 
@@ -31,7 +29,6 @@ export default function HomePage() {
 
   const myAddress = wallet.identity?.nametag ?? '';
 
-  // ✅ FIX: WishScore history for current user
   const myWishScoreHistory = useMemo(() => {
     const myWishes = wishes.filter(w => w.creatorAddress === myAddress);
     const myVotes: { description: string; points: number; time: number }[] = [];
@@ -54,29 +51,33 @@ export default function HomePage() {
   const myTotalWishScore = myWishScoreHistory.reduce((s, e) => s + e.points, 0);
 
   const filtered = useMemo<Wish[]>(() => {
+    const now = Date.now(); // ✅ FIX: added now for expiry checks
+
     switch (tab) {
       case 'hot':
         return [...wishes]
-          .filter(w => w.status === 'active')
+          .filter(w => w.status === 'active' && w.expiresAt > now) // ✅ FIX
           .sort((a, b) => (b.fulfilCount + b.noFulfilCount) - (a.fulfilCount + a.noFulfilCount));
 
       case 'new':
         return [...wishes]
-          .filter(w => w.status === 'active')
+          .filter(w => w.status === 'active' && w.expiresAt > now) // ✅ FIX
           .sort((a, b) => b.createdAt - a.createdAt);
 
       case 'expiring':
         return [...wishes]
-          .filter(w => w.status === 'active')
+          .filter(w =>
+            w.status === 'active' &&
+            w.expiresAt > now &&               // ✅ FIX: must not already be expired
+            w.expiresAt - now <= 3_600_000     // ✅ FIX: only ≤1 hour remaining
+          )
           .sort((a, b) => a.expiresAt - b.expiresAt);
 
-      // ✅ FIX: "Mine" = only wishes I created
       case 'mine':
         return myAddress
           ? wishes.filter(w => w.creatorAddress === myAddress)
           : [];
 
-      // ✅ FIX: "My Votes" = wishes I voted on
       case 'myvotes':
         return myAddress
           ? wishes.filter(w => w.votes.some(v => v.voterAddress === myAddress))
@@ -120,7 +121,6 @@ export default function HomePage() {
     });
   };
 
-  // ✅ FIX: Tab bar rendered properly, split "mine" into "My Wishes" + "My Votes"
   const TABS: { key: Tab; label: string }[] = [
     { key: 'hot',        label: '🔥 Trending'   },
     { key: 'new',        label: '✨ Fresh'       },
@@ -153,7 +153,6 @@ export default function HomePage() {
 
       <main className="relative max-w-4xl mx-auto px-4 py-6">
 
-        {/* ✅ FIX: Tab bar actually rendered */}
         <div className="flex flex-wrap gap-2 mb-6">
           {TABS.map(t => (
             <button
@@ -168,7 +167,6 @@ export default function HomePage() {
             </button>
           ))}
 
-          {/* ✅ FIX: Leaderboard button opens modal */}
           <button
             onClick={() => setShowLeaderboard(true)}
             className="px-4 py-2 rounded-full text-sm font-semibold bg-slate-800 text-slate-400 hover:text-white transition-colors"
@@ -176,7 +174,6 @@ export default function HomePage() {
             🏆 Leaderboard
           </button>
 
-          {/* ✅ FIX: WishScore button opens history modal */}
           <button
             onClick={() => setShowWishScore(true)}
             className="px-4 py-2 rounded-full text-sm font-semibold bg-slate-800 text-slate-400 hover:text-white transition-colors"
@@ -220,7 +217,7 @@ export default function HomePage() {
         creatorNametag={wallet.identity?.nametag ?? ''}
       />
 
-      {/* ✅ FIX: Leaderboard Modal with all 3 tabs including WishScore */}
+      {/* Leaderboard Modal */}
       {showLeaderboard && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
@@ -234,7 +231,6 @@ export default function HomePage() {
               <h2 className="text-lg font-bold text-white">🏆 Leaderboard</h2>
               <button onClick={() => setShowLeaderboard(false)} className="text-slate-400 hover:text-white text-xl">×</button>
             </div>
-            {/* ✅ FIX: Pass wishScoreUsers to Leaderboard */}
             <Leaderboard
               wishCreators={wishCreators}
               voters={voters}
@@ -244,7 +240,7 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* ✅ FIX: WishScore History Modal for current user */}
+      {/* WishScore History Modal */}
       {showWishScore && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
