@@ -64,7 +64,9 @@ from-[#071226]
 to-[#040b18]
 border border-[#1f2d4d]
 rounded-[32px]
-p-7 shadow-2xl">
+p-7 shadow-2xl
+max-h-[90vh]
+overflow-y-auto">
         <div className="flex items-center justify-between mb-5">
           <div>
             <h2 className="text-xl font-bold text-white">🪙 Cast a Wish</h2>
@@ -73,7 +75,7 @@ p-7 shadow-2xl">
               <span className="text-amber-400 font-semibold">
                 @{creatorNametag || 'anonymous'}
               </span>
-              {' '}· stake goes to your own wallet
+              {' '}· stake goes to builder wallet
             </p>
           </div>
           <button onClick={onClose} className="text-slate-500 hover:text-white text-xl">✕</button>
@@ -126,14 +128,17 @@ p-7 shadow-2xl">
     </div>
 
     <div
-      className="
-        text-white
-        text-lg font-bold
-        leading-relaxed
-      "
-    >
-      "{text}"
-    </div>
+  className="
+    text-white
+    text-lg font-bold
+    leading-relaxed
+    break-words
+    max-h-[120px]
+    overflow-y-auto
+  "
+>
+  "{text}"
+</div>
   </div>
 )}
         </div>
