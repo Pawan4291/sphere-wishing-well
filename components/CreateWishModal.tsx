@@ -59,7 +59,7 @@ export default function CreateWishModal({
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4 pb-4 sm:pb-0">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative w-full max-w-2xl bg-gradient-to-b
+      <div className="relative w-full max-w-xl bg-gradient-to-b
 from-[#071226]
 to-[#040b18]
 border border-[#1f2d4d]
@@ -79,48 +79,14 @@ p-7 shadow-2xl">
           <button onClick={onClose} className="text-slate-500 hover:text-white text-xl">✕</button>
         </div>
 
-<div
+<p
   className="
-    mb-5 rounded-2xl
-    border border-amber-500/20
-    bg-amber-500/5
-    p-4
+    text-xs text-slate-500
+    mb-4 leading-relaxed
   "
 >
-  <h3
-    className="
-      text-sm font-bold
-      text-amber-300
-      mb-2
-    "
-  >
-    How Sphere Wishing Well Works
-  </h3>
-
-  <div
-    className="
-      space-y-2
-      text-xs text-slate-400
-      leading-relaxed
-    "
-  >
-    <p>
-      ✨ Create a prediction or wish
-    </p>
-
-    <p>
-      🗳 Community votes if it will happen
-    </p>
-
-    <p>
-      🏆 Accurate users earn WishScore reputation
-    </p>
-
-    <p>
-      ⏳ When timer ends, result becomes permanent
-    </p>
-  </div>
-</div>
+  ✨ Create a prediction • 🗳 Community votes • 🏆 Earn WishScore reputation
+</p>
 
 
         {/* Wish text */}
@@ -133,7 +99,7 @@ p-7 shadow-2xl">
             onChange={e => setText(e.target.value)}
             placeholder="Bitcoin will cross $150k this month..."
             maxLength={200}
-            rows={5}
+            rows={3}
             className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm
               placeholder:text-slate-600 focus:outline-none focus:border-amber-500/60 resize-none"
           />
@@ -217,7 +183,7 @@ p-7 shadow-2xl">
         {/* Stake */}
         <div className="mb-5">
           <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 block">
-            Your Stake — goes to your own wallet
+            Your stake goes to builder wallet
           </label>
           <div className="flex gap-2">
             {STAKE_OPTIONS.map(s => (
