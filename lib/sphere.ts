@@ -8,7 +8,10 @@ let identityCache: WalletIdentity | null = null;
 
 export async function connectWallet(
   silent = false,
-  permissions = ['resolve_addresses', 'request_transfers'],
+  permissions: PermissionScope[] = [
+  'resolve_addresses',
+  'request_transfers',
+],
 ): Promise<{ client: any; identity: WalletIdentity }> {
   const { autoConnect } = await import(
     '@unicitylabs/sphere-sdk/connect/browser'
