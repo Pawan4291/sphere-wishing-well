@@ -1,137 +1,78 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-
+import { useState, useEffect, useCallback } from 'react';
 import type { WalletIdentity } from '../types/wish';
-
 import {
   connectWallet,
   disconnectWallet,
   onIncomingTransfer,
+  fetchUCTCoinId,
 } from '../lib/sphere';
 
-export type ConnectionStatus =
-  | 'idle'
-  | 'connecting'
-  | 'connected'
-  | 'error';
+type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
 export function useSphereWallet() {
+  const [status, setStatus] = useState<ConnectionStatus>('idle');
+  const [identity, setIdentity] = useState<WalletIdentity | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const [status, setStatus] =
-    useState<ConnectionStatus>('idle');
-
-  const [identity, setIdentity] =
-    useState<WalletIdentity | null>(null);
-
-  const [error, setError] =
-    useState<string | null>(null);
-
-  const silentTried = useRef(false);
-
-  // Silent reconnect
+  // Silent reconnect on load
   useEffect(() => {
-
-    if (silentTried.current) return;
-
-    silentTried.current = true;
-
     let cancelled = false;
 
-    (async () => {
-
-      setStatus('connecting');
-
+    async function silentConnect() {
       try {
-
-        const { identity: id } =
-          await connectWallet(true);
-
+        setStatus('connecting');
+        const result = await connectWallet(true);
         if (!cancelled) {
-          setIdentity(id);
+          // Fetch UCT hex coinId so asset picker is skipped
+          await fetchUCTCoinId();
+          setIdentity(result.identity);
           setStatus('connected');
         }
-
-      } catch {
-
-        if (!cancelled) {
-          setStatus('idle');
-        }
+      } catch (e) {
+        console.log('Silent connect skipped');
+        if (!cancelled) setStatus('idle');
       }
-
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-
-  }, []);
-
-  // Incoming transfers listener
-  useEffect(() => {
-
-    if (status !== 'connected') return;
-
-    onIncomingTransfer((data: any) => {
-
-      console.log(
-        '[wallet] incoming transfer:',
-        data
-      );
-
-      setIdentity(prev =>
-        prev ? { ...prev } : prev
-      );
-    });
-
-  }, [status]);
-
-  // Manual connect
-  const connect = useCallback(async () => {
-
-    setError(null);
-    setStatus('connecting');
-
-    try {
-
-      const { identity: id } =
-        await connectWallet(false);
-
-      setIdentity(id);
-      setStatus('connected');
-
-    } catch (e: any) {
-
-      console.error(
-        '[wallet] connect error:',
-        e
-      );
-
-      setError(
-        e?.message ?? 'Wallet connection failed'
-      );
-
-      setStatus('error');
     }
 
+    silentConnect();
+    return () => { cancelled = true; };
   }, []);
 
-  // Disconnect
-  const disconnect = useCallback(async () => {
+  // Incoming transfer listener
+  useEffect(() => {
+    if (status !== 'connected') return;
+    onIncomingTransfer((data: any) => {
+      console.log('Incoming transfer:', data);
+      setIdentity(prev => prev ? { ...prev } : prev);
+    });
+  }, [status]);
 
+  const connect = useCallback(async () => {
+    try {
+      setError(null);
+      setStatus('connecting');
+      const result = await connectWallet(false);
+      // Fetch UCT hex coinId so asset picker is skipped
+      await fetchUCTCoinId();
+      setIdentity(result.identity);
+      setStatus('connected');
+    } catch (e: any) {
+      console.error('Wallet connect error:', e);
+      setError(e?.message || 'Wallet connection failed');
+      setStatus('error');
+    }
+  }, []);
+
+  const disconnect = useCallback(async () => {
     try {
       await disconnectWallet();
     } catch (e) {
-      console.error(
-        '[wallet] disconnect error:',
-        e
-      );
+      console.error('Disconnect failed:', e);
     }
-
     setIdentity(null);
     setStatus('idle');
-    setError(null);
-
   }, []);
 
   return {
