@@ -8,7 +8,7 @@ let identityCache: WalletIdentity | null = null;
 
 export async function connectWallet(
   silent = false,
-  permissions: PermissionScope[] = [
+ permissions = [
   'resolve_addresses',
   'request_transfers',
 ],
