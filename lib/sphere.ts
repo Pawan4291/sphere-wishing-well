@@ -8,23 +8,25 @@ let identityCache: WalletIdentity | null = null;
 
 export async function connectWallet(
   silent = false,
- permissions = [
-  'resolve_addresses',
-  'request_transfers',
-],
+  permissions = [
+    'resolve_addresses',
+    'request_transfers',
+  ]
 ): Promise<{ client: any; identity: WalletIdentity }> {
   const { autoConnect } = await import(
     '@unicitylabs/sphere-sdk/connect/browser'
   );
 
-  const result = await autoConnect({
+ const result = await autoConnect({
   dapp: {
     name: 'Sphere Wishing Well',
     description:
       'Cast wishes, vote with your wallet, see community predictions come true.',
     url: typeof window !== 'undefined' ? window.location.origin : '',
-    permissions,
   },
+
+  permissions,
+
   walletUrl: SPHERE_WALLET_URL,
   silent,
 });
