@@ -9,6 +9,12 @@ import {
   fetchUCTCoinId,
 } from '../lib/sphere';
 
+// Only the 2 permissions Wishing Well actually needs.
+// This is what MastaP flagged — we were requesting everything by default.
+//   resolve_addresses → resolve @pawan429 treasury nametag
+//   request_transfers → prompt user to pay 1 UCT into treasury
+const REQUIRED_PERMISSIONS = ['resolve_addresses', 'request_transfers'];
+
 type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
 export function useSphereWallet() {
@@ -23,9 +29,8 @@ export function useSphereWallet() {
     async function silentConnect() {
       try {
         setStatus('connecting');
-        const result = await connectWallet(true);
+        const result = await connectWallet(true, REQUIRED_PERMISSIONS);
         if (!cancelled) {
-          // Fetch UCT hex coinId so asset picker is skipped
           await fetchUCTCoinId();
           setIdentity(result.identity);
           setStatus('connected');
@@ -53,8 +58,7 @@ export function useSphereWallet() {
     try {
       setError(null);
       setStatus('connecting');
-      const result = await connectWallet(false);
-      // Fetch UCT hex coinId so asset picker is skipped
+      const result = await connectWallet(false, REQUIRED_PERMISSIONS);
       await fetchUCTCoinId();
       setIdentity(result.identity);
       setStatus('connected');
