@@ -16,14 +16,15 @@ export async function connectWallet(
   const { autoConnect } = await import('@unicitylabs/sphere-sdk/connect/browser');
 
   const result: any = await autoConnect({
-    dapp: {
-      name: 'Sphere Wishing Well',
-      description: 'Cast wishes, vote with your wallet, see community predictions come true.',
-      url: typeof window !== 'undefined' ? window.location.origin : '',
-    },
-    walletUrl: SPHERE_WALLET_URL,
-    silent,
-  });
+  dapp: {
+    name: 'Sphere Wishing Well',
+    description: 'Cast wishes, vote with your wallet, see community predictions come true.',
+    url: typeof window !== 'undefined' ? window.location.origin : '',
+    permissions: ['view_balance', 'request_transfers'],
+  } as any,                    // ← add this
+  walletUrl: SPHERE_WALLET_URL,
+  silent,
+});
 
   // autoConnect can return either { client, connection } or the client directly
   const client: any = result?.client ?? result;
