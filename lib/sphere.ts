@@ -173,21 +173,18 @@ export async function sendUCT(
   recipientAddress: string,
   amountUCT: number
 ): Promise<void> {
-
-  if (!clientInstance) {
-    throw new Error('Wallet not connected');
-  }
-
-  if (!recipientAddress) {
-    throw new Error('Recipient missing');
-  }
+  if (!clientInstance) throw new Error('Wallet not connected');
+  if (!recipientAddress) throw new Error('Recipient missing');
 
   const amount = (amountUCT * 1_000_000).toString();
 
-  await (clientInstance as any).payments.send({
-    recipient: recipientAddress,
-    coinId: 'UCT',
-    amount,
+  await (clientInstance as any).request({
+    method: 'transfer:request',
+    params: {
+      recipient: recipientAddress,
+      coinId: 'UCT',
+      amount,
+    },
   });
 }
 
