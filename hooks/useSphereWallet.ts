@@ -1,82 +1,76 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { WalletIdentity } from '../types/wish';
 import {
   connectWallet,
   disconnectWallet,
   onIncomingTransfer,
-  fetchUCTCoinId,
 } from '../lib/sphere';
 
-// Only the 2 permissions Wishing Well actually needs.
-// This is what MastaP flagged — we were requesting everything by default.
-//   resolve_addresses → resolve @pawan429 treasury nametag
-//   request_transfers → prompt user to pay 1 UCT into treasury
-const REQUIRED_PERMISSIONS = ['resolve_addresses', 'request_transfers'];
-
-type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error';
+export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
 export function useSphereWallet() {
-  const [status, setStatus] = useState<ConnectionStatus>('idle');
+  const [status,   setStatus]   = useState<ConnectionStatus>('idle');
   const [identity, setIdentity] = useState<WalletIdentity | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error,    setError]    = useState<string | null>(null);
+  const silentTried = useRef(false); // prevent double-fire in React strict mode
 
-  // Silent reconnect on load
+  // ── Silent reconnect on mount ─────────────────────────────────────────────
   useEffect(() => {
+    if (silentTried.current) return;
+    silentTried.current = true;
+
     let cancelled = false;
 
-    async function silentConnect() {
+    (async () => {
+      setStatus('connecting');
       try {
-        setStatus('connecting');
-        const result = await connectWallet(true, REQUIRED_PERMISSIONS);
+        const { identity: id } = await connectWallet(true /* silent */);
         if (!cancelled) {
-          await fetchUCTCoinId();
-          setIdentity(result.identity);
+          setIdentity(id);
           setStatus('connected');
         }
-      } catch (e) {
-        console.log('Silent connect skipped');
+      } catch {
+        // Silent connect failing is normal (user never connected before)
         if (!cancelled) setStatus('idle');
       }
-    }
+    })();
 
-    silentConnect();
     return () => { cancelled = true; };
   }, []);
 
-  // Incoming transfer listener
+  // ── Listen for incoming transfers while connected ─────────────────────────
   useEffect(() => {
     if (status !== 'connected') return;
     onIncomingTransfer((data: any) => {
-      console.log('Incoming transfer:', data);
+      console.log('[wallet] incoming transfer:', data);
+      // Force a re-render so balance-dependent UI refreshes
       setIdentity(prev => prev ? { ...prev } : prev);
     });
   }, [status]);
 
+  // ── Manual connect (button click) ─────────────────────────────────────────
   const connect = useCallback(async () => {
+    setError(null);
+    setStatus('connecting');
     try {
-      setError(null);
-      setStatus('connecting');
-      const result = await connectWallet(false, REQUIRED_PERMISSIONS);
-      await fetchUCTCoinId();
-      setIdentity(result.identity);
+      const { identity: id } = await connectWallet(false /* not silent — shows popup */);
+      setIdentity(id);
       setStatus('connected');
     } catch (e: any) {
-      console.error('Wallet connect error:', e);
-      setError(e?.message || 'Wallet connection failed');
+      console.error('[wallet] connect error:', e);
+      setError(e?.message ?? 'Wallet connection failed');
       setStatus('error');
     }
   }, []);
 
+  // ── Disconnect ────────────────────────────────────────────────────────────
   const disconnect = useCallback(async () => {
-    try {
-      await disconnectWallet();
-    } catch (e) {
-      console.error('Disconnect failed:', e);
-    }
+    try { await disconnectWallet(); } catch (e) { console.error('[wallet] disconnect error:', e); }
     setIdentity(null);
     setStatus('idle');
+    setError(null);
   }, []);
 
   return {
