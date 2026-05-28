@@ -2,147 +2,186 @@
 
 import type { WalletIdentity } from '../types/wish';
 import { SPHERE_WALLET_URL } from './constants';
+import {
+  ConnectClient,
+  HOST_READY_TYPE,
+  HOST_READY_TIMEOUT,
+} from '@unicitylabs/sphere-sdk/connect';
+import {
+  PostMessageTransport,
+} from '@unicitylabs/sphere-sdk/connect/browser';
+import type { PermissionScope } from '@unicitylabs/sphere-sdk/connect';
 
-// Module-level singletons — survive re-renders
-let _client: any = null;
-let _identity: WalletIdentity | null = null;
-let _uctCoinId: string = 'UCT'; // fallback symbol; replaced with hex coinId after connect
+// ✅ ONLY the permissions this app actually needs
+const PERMISSIONS: PermissionScope[] = [
+  'identity:read',
+  'balance:read',
+  'dm:read',
+  'dm:request',
+  'transfer:request',
+  'events:subscribe',
+];
 
-// ─── Connect ────────────────────────────────────────────────────────────────
+const DAPP_META = {
+  name: 'Sphere Wishing Well',
+  description: 'Cast wishes, vote with your wallet, see community predictions come true.',
+  url: typeof window !== 'undefined' ? window.location.origin : '',
+} as const;
+
+const SESSION_KEY = 'sphere-wishing-well-session';
+
+let clientInstance: ConnectClient | null = null;
+let identityCache: WalletIdentity | null = null;
+
+function waitForHostReady(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      window.removeEventListener('message', handler);
+      reject(new Error('Wallet did not respond in time'));
+    }, HOST_READY_TIMEOUT);
+
+    function handler(event: MessageEvent) {
+      if (event.data?.type === HOST_READY_TYPE) {
+        clearTimeout(timeout);
+        window.removeEventListener('message', handler);
+        resolve();
+      }
+    }
+    window.addEventListener('message', handler);
+  });
+}
+
+function isInIframe(): boolean {
+  try {
+    return window.self !== window.top;
+  } catch {
+    return true;
+  }
+}
 
 export async function connectWallet(
   silent = false
-): Promise<{ client: any; identity: WalletIdentity }> {
-  const { autoConnect } = await import('@unicitylabs/sphere-sdk/connect/browser');
+): Promise<{ client: ConnectClient; identity: WalletIdentity }> {
 
-  const result: any = await autoConnect({
-  dapp: {
-    name: 'Sphere Wishing Well',
-    description: 'Cast wishes, vote with your wallet, see community predictions come true.',
-    url: typeof window !== 'undefined' ? window.location.origin : '',
-    permissions: ['view_balance', 'request_transfers'],
-  } as any,                    // ← add this
-  walletUrl: SPHERE_WALLET_URL,
-  silent,
-});
-
-  // autoConnect can return either { client, connection } or the client directly
-  const client: any = result?.client ?? result;
-  _client = client;
-
-  // Pull identity from wherever the SDK puts it
-  const raw: any =
-    result?.connection?.identity ??
-    result?.identity ??
-    client?.connection?.identity ??
-    client?.identity ??
-    {};
-
-  let nametag: string     = raw?.nametag       ?? '';
-  let directAddress: string = raw?.directAddress ?? '';
-  let l1Address: string   = raw?.l1Address     ?? '';
-  let chainPubkey: string = raw?.chainPubkey   ?? '';
-
-  // Some SDK versions need an explicit query
-  if (!nametag) {
-    try {
-      const q: any = await client.query('sphere_getIdentity');
-      nametag       = q?.nametag       ?? nametag;
-      directAddress = q?.directAddress ?? directAddress;
-      l1Address     = q?.l1Address     ?? l1Address;
-      chainPubkey   = q?.chainPubkey   ?? chainPubkey;
-    } catch (e) {
-      console.warn('sphere_getIdentity query failed — identity may be partial:', e);
+  if (isInIframe()) {
+    // ── Inside Sphere iframe ──────────────────────────────────────
+    if (silent) {
+      // Wait for HOST_READY before trying silent connect
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          window.removeEventListener('message', readyHandler);
+          reject(new Error('Host not ready'));
+        }, 5000);
+        function readyHandler(e: MessageEvent) {
+          if (e.data?.type === HOST_READY_TYPE) {
+            clearTimeout(timer);
+            window.removeEventListener('message', readyHandler);
+            resolve();
+          }
+        }
+        window.addEventListener('message', readyHandler);
+      });
     }
-  }
 
-  const identity: WalletIdentity = { nametag, directAddress, l1Address, chainPubkey };
-  _identity = identity;
+    const transport = PostMessageTransport.forClient();
+    const client = new ConnectClient({
+      transport,
+      dapp: DAPP_META,
+      permissions: PERMISSIONS,
+      ...(silent ? { silent: true } : {}),
+    });
 
-  console.log('[sphere] connected identity:', identity);
+    const result = await client.connect();
+    sessionStorage.setItem(SESSION_KEY, result.sessionId);
 
-  // Immediately try to get the real UCT coinId hex so sendUCT skips the asset picker
-  await _fetchUCTCoinId(client);
+    clientInstance = client;
+    const identity: WalletIdentity = {
+      nametag: (result.identity as any)?.nametag ?? '',
+      directAddress: (result.identity as any)?.directAddress ?? '',
+      l1Address: (result.identity as any)?.l1Address ?? '',
+      chainPubkey: (result.identity as any)?.chainPubkey ?? '',
+    };
+    identityCache = identity;
+    return { client, identity };
 
-  return { client, identity };
-}
+  } else {
+    // ── Popup mode (standalone / outside iframe) ──────────────────
+    const popup = window.open(
+      SPHERE_WALLET_URL + '/connect?origin=' + encodeURIComponent(location.origin),
+      'sphere-wallet',
+      'width=420,height=650'
+    );
 
-// ─── UCT coin ID (internal) ──────────────────────────────────────────────────
-
-async function _fetchUCTCoinId(client: any): Promise<void> {
-  try {
-    const assets: any[] = await client.query('sphere_getBalance');
-    if (Array.isArray(assets)) {
-      const uct = assets.find((a: any) => a.symbol === 'UCT');
-      if (uct?.coinId) {
-        _uctCoinId = uct.coinId;
-        console.log('[sphere] UCT coinId:', _uctCoinId);
-      }
+    if (!popup) {
+      throw new Error('Popup blocked. Please allow popups for this site.');
     }
-  } catch (e) {
-    console.warn('[sphere] Could not fetch UCT coinId, will use symbol fallback:', e);
+
+    const transport = PostMessageTransport.forClient({
+      target: popup,
+      targetOrigin: SPHERE_WALLET_URL,
+    });
+
+    await waitForHostReady();
+
+    const resumeSessionId = sessionStorage.getItem(SESSION_KEY) ?? undefined;
+    const client = new ConnectClient({
+      transport,
+      dapp: DAPP_META,
+      permissions: PERMISSIONS,
+      ...(resumeSessionId ? { resumeSessionId } : {}),
+      ...(silent ? { silent: true } : {}),
+    });
+
+    const result = await client.connect();
+    sessionStorage.setItem(SESSION_KEY, result.sessionId);
+
+    clientInstance = client;
+    const identity: WalletIdentity = {
+      nametag: (result.identity as any)?.nametag ?? '',
+      directAddress: (result.identity as any)?.directAddress ?? '',
+      l1Address: (result.identity as any)?.l1Address ?? '',
+      chainPubkey: (result.identity as any)?.chainPubkey ?? '',
+    };
+    identityCache = identity;
+    return { client, identity };
   }
 }
-
-// Exported so useSphereWallet can call it after silent reconnect if needed
-export async function fetchUCTCoinId(): Promise<void> {
-  if (_client) await _fetchUCTCoinId(_client);
-}
-
-// ─── Send UCT ────────────────────────────────────────────────────────────────
 
 export async function sendUCT(
-  recipient: string,
-  amountUCT: number,
-  memo = ''
+  recipientAddress: string,
+  amountUCT: number
 ): Promise<void> {
-  if (!_client)    throw new Error('Wallet not connected');
-  if (!recipient)  throw new Error('Recipient address is missing');
+  if (!clientInstance) throw new Error('Wallet not connected');
+  if (!recipientAddress) throw new Error('Recipient missing');
 
-  console.log('[sphere] sendUCT →', { recipient, amountUCT, coinId: _uctCoinId });
+  // 1 UCT = 1_000_000 base units
+  const amount = (amountUCT * 1_000_000).toString();
 
-  try {
-    await _client.intent('send', {
-      to: recipient,
-      amount: amountUCT,
-      coinId: _uctCoinId,
-      ...(memo ? { memo } : {}),
-    });
-    console.log('[sphere] sendUCT success');
-  } catch (e: any) {
-    const msg = String(e?.message ?? e ?? '');
-
-    // The SDK sometimes throws after the tx already went through — treat as success
-    const isSpuriousError =
-      msg.includes('startsWith') ||
-      msg.includes('Cannot read properties of undefined') ||
-      msg.toLowerCase().includes('timeout');
-
-    if (isSpuriousError) {
-      console.warn('[sphere] Spurious SDK error after send (tx likely succeeded):', msg);
-      return;
-    }
-
-    throw e; // real error — propagate so the UI can show it
-  }
+  await (clientInstance as any).payments.send({
+    recipient: recipientAddress,
+    coinId: 'UCT',
+    amount,
+  });
 }
 
-// ─── Disconnect ──────────────────────────────────────────────────────────────
-
-export async function disconnectWallet(): Promise<void> {
-  if (_client) {
-    try { await _client.disconnect(); } catch { /* ignore */ }
-    _client   = null;
-    _identity = null;
-    _uctCoinId = 'UCT';
-  }
+export function getClient() {
+  return clientInstance;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+export function getCachedIdentity() {
+  return identityCache;
+}
 
-export function getClient(): any                  { return _client; }
-export function getCachedIdentity(): WalletIdentity | null { return _identity; }
+export function onIncomingTransfer(cb: (data: any) => void) {
+  if (!clientInstance) return;
+  (clientInstance as any).on('transfer:incoming', cb);
+}
 
-export function onIncomingTransfer(cb: (data: any) => void): void {
-  _client?.on?.('transfer:incoming', cb);
+export async function disconnectWallet() {
+  if (clientInstance) {
+    await (clientInstance as any).disconnect?.();
+    clientInstance = null;
+    identityCache = null;
+  }
+  sessionStorage.removeItem(SESSION_KEY);
 }
