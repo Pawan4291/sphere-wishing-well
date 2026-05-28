@@ -184,7 +184,7 @@ export async function sendUCT(
 
   const amount = (amountUCT * 1_000_000).toString();
 
-  await (clientInstance as any).requestTransfer({
+  await (clientInstance as any).payments.send({
     recipient: recipientAddress,
     coinId: 'UCT',
     amount,
