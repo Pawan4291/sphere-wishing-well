@@ -12,44 +12,54 @@ export async function connectWallet(
   silent = false
 ): Promise<{ client: any; identity: WalletIdentity }> {
 
-  const sdk: any = await import('@unicitylabs/sphere-sdk/connect/browser');
+  const { autoConnect } = await import(
+    '@unicitylabs/sphere-sdk/connect/browser'
+  );
 
-  const transport = new sdk.IframeTransport(SPHERE_WALLET_URL);
-
-  const client = new sdk.ConnectClient({
-    transport,
+  const result = await autoConnect({
     dapp: {
       name: 'Sphere Wishing Well',
       description: 'Cast wishes, vote with your wallet, see community predictions come true.',
       url: typeof window !== 'undefined' ? window.location.origin : '',
     },
-    permissions: [
-      'identity:read',
-      'balance:read',
-      'tokens:read',
-      'events:subscribe',
-      'transfer:request',
-    ],
+    walletUrl: SPHERE_WALLET_URL,
     silent,
-  });
+  } as any);
 
-  await client.connect();
-  clientInstance = client;
+  clientInstance = result.client;
 
-  const raw: any = await client.query('sphere_getIdentity');
-  console.log('IDENTITY RAW:', raw);
+  const raw: any = result.connection?.identity ?? {};
+  console.log('IDENTITY RAW from connection:', raw);
+
+  let directAddress = raw?.directAddress || '';
+  let nametag = raw?.nametag || '';
+  let l1Address = raw?.l1Address || '';
+  let chainPubkey = raw?.chainPubkey || '';
+
+  if (!nametag) {
+    try {
+      const queried: any = await result.client.query('sphere_getIdentity');
+      console.log('IDENTITY RAW from query:', queried);
+      directAddress = queried?.directAddress || directAddress;
+      nametag = queried?.nametag || nametag;
+      l1Address = queried?.l1Address || l1Address;
+      chainPubkey = queried?.chainPubkey || chainPubkey;
+    } catch (e) {
+      console.warn('sphere_getIdentity query failed:', e);
+    }
+  }
 
   const identity: WalletIdentity = {
-    nametag: raw?.nametag || '',
-    directAddress: raw?.directAddress || '',
-    l1Address: raw?.l1Address || '',
-    chainPubkey: raw?.chainPubkey || '',
+    nametag,
+    directAddress,
+    l1Address,
+    chainPubkey,
   };
 
   identityCache = identity;
   console.log('FINAL IDENTITY:', identity);
 
-  return { client, identity };
+  return { client: result.client, identity };
 }
 
 export async function sendUCT(
