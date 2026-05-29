@@ -5,127 +5,114 @@ import { SPHERE_WALLET_URL } from './constants';
 
 export const BUILDER_NAMETAG = '@pawan429';
 
-let connectClient: any = null;
+let clientInstance: any = null;
 let identityCache: WalletIdentity | null = null;
-let uctCoinIdHex: string = 'UCT';
 
 export async function connectWallet(
   silent = false
 ): Promise<{ client: any; identity: WalletIdentity }> {
+
   const { autoConnect } = await import(
     '@unicitylabs/sphere-sdk/connect/browser'
   );
 
-  const result: any = await autoConnect({
+  const result = await autoConnect({
     dapp: {
       name: 'Sphere Wishing Well',
-      description:
-        'Cast wishes, vote with your wallet, see community predictions come true.',
+      description: 'Cast wishes, vote with your wallet, see community predictions come true.',
       url: typeof window !== 'undefined' ? window.location.origin : '',
+      permissions: [
+        'identity:read',
+        'balance:read',
+        'tokens:read',
+        'events:subscribe',
+        'transfer:request',
+      ],
     },
     walletUrl: SPHERE_WALLET_URL,
     silent,
-  });
+  } as any);
 
-  const client: any = result?.client ?? result;
-  connectClient = client;
+  clientInstance = result.client;
 
-  const raw: any =
-    result?.connection?.identity ??
-    result?.identity ??
-    client?.connection?.identity ??
-    client?.identity ??
-    {};
+  const raw: any = result.connection?.identity ?? {};
+  console.log('IDENTITY RAW from connection:', raw);
 
-  let nametag: string = raw?.nametag ?? '';
-  let directAddress: string = raw?.directAddress ?? '';
-  let l1Address: string = raw?.l1Address ?? '';
-  let chainPubkey: string = raw?.chainPubkey ?? '';
+  let directAddress = raw?.directAddress || '';
+  let nametag = raw?.nametag || '';
+  let l1Address = raw?.l1Address || '';
+  let chainPubkey = raw?.chainPubkey || '';
 
   if (!nametag) {
     try {
-      const q: any = await client.query('sphere_getIdentity');
-      nametag = q?.nametag ?? nametag;
-      directAddress = q?.directAddress ?? directAddress;
-      l1Address = q?.l1Address ?? l1Address;
-      chainPubkey = q?.chainPubkey ?? chainPubkey;
+      const queried: any = await result.client.query('sphere_getIdentity');
+      console.log('IDENTITY RAW from query:', queried);
+      directAddress = queried?.directAddress || directAddress;
+      nametag = queried?.nametag || nametag;
+      l1Address = queried?.l1Address || l1Address;
+      chainPubkey = queried?.chainPubkey || chainPubkey;
     } catch (e) {
       console.warn('sphere_getIdentity query failed:', e);
     }
   }
 
-  const identity: WalletIdentity = { nametag, directAddress, l1Address, chainPubkey };
+  const identity: WalletIdentity = {
+    nametag,
+    directAddress,
+    l1Address,
+    chainPubkey,
+  };
+
   identityCache = identity;
-  console.log('CONNECTED IDENTITY:', identity);
+  console.log('FINAL IDENTITY:', identity);
 
-  return { client, identity };
-}
-
-export async function fetchUCTCoinId(): Promise<void> {
-  if (!connectClient) return;
-  try {
-    const assets: any[] = await connectClient.query('sphere_getBalance');
-    if (Array.isArray(assets)) {
-      const uct = assets.find((a: any) => a.symbol === 'UCT');
-      if (uct?.coinId) {
-        uctCoinIdHex = uct.coinId;
-        console.log('UCT coinId fetched:', uctCoinIdHex);
-      }
-    }
-  } catch (e) {
-    console.warn('Could not fetch UCT coinId:', e);
-  }
+  return { client: result.client, identity };
 }
 
 export async function sendUCT(
-  recipient: string,
-  amountUCT: number,
-  memo: string = ''
+  recipientAddress: string,
+  amountUCT: number
 ): Promise<void> {
-  if (!connectClient) throw new Error('Wallet not connected');
-  if (!recipient) throw new Error('Recipient missing');
 
-  console.log('SENDING UCT via intent:', { to: recipient, amount: amountUCT, coinId: uctCoinIdHex });
-
-  try {
-    await connectClient.intent('send', {
-      to: recipient,
-      amount: amountUCT,
-      coinId: uctCoinIdHex,
-      ...(memo ? { memo } : {}),
-    });
-    console.log('UCT send success');
-  } catch (e: any) {
-    const msg = String(e?.message ?? e ?? '');
-    if (
-      msg.includes('startsWith') ||
-      msg.includes('Cannot read properties of undefined') ||
-      msg.toLowerCase().includes('timeout')
-    ) {
-      console.warn('SDK error after send (tx succeeded):', msg);
-      return;
-    }
-    throw e;
+  if (!clientInstance) {
+    throw new Error('Wallet not connected');
   }
+
+  if (!recipientAddress) {
+    throw new Error('Recipient missing');
+  }
+
+  const amount = (amountUCT * 1000000).toString();
+
+  console.log('PAYMENTS SEND DEBUG', {
+    recipient: recipientAddress,
+    amount,
+  });
+
+  await clientInstance.payments.send({
+    recipient: recipientAddress,
+    coinId: 'UCT',
+    amount,
+  });
 }
 
-export function getClient(): any {
-  return connectClient;
+export function getClient() {
+  return clientInstance;
 }
 
-export function getCachedIdentity(): WalletIdentity | null {
+export function getCachedIdentity() {
   return identityCache;
 }
 
-export function onIncomingTransfer(cb: (data: any) => void): void {
-  if (!connectClient) return;
-  connectClient.on?.('transfer:incoming', cb);
+export function onIncomingTransfer(cb: (data: any) => void) {
+  if (!clientInstance) return;
+  clientInstance.on('transfer:incoming', cb);
 }
 
-export async function disconnectWallet(): Promise<void> {
-  if (connectClient) {
-    try { await connectClient.disconnect(); } catch {}
-    connectClient = null;
+export async function disconnectWallet() {
+  if (clientInstance) {
+    await clientInstance.disconnect();
+    clientInstance = null;
     identityCache = null;
   }
 }

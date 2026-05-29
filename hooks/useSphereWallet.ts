@@ -6,7 +6,6 @@ import {
   connectWallet,
   disconnectWallet,
   onIncomingTransfer,
-  fetchUCTCoinId,
 } from '../lib/sphere';
 
 type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error';
@@ -25,8 +24,6 @@ export function useSphereWallet() {
         setStatus('connecting');
         const result = await connectWallet(true);
         if (!cancelled) {
-          // Fetch UCT hex coinId so asset picker is skipped
-          await fetchUCTCoinId();
           setIdentity(result.identity);
           setStatus('connected');
         }
@@ -54,8 +51,6 @@ export function useSphereWallet() {
       setError(null);
       setStatus('connecting');
       const result = await connectWallet(false);
-      // Fetch UCT hex coinId so asset picker is skipped
-      await fetchUCTCoinId();
       setIdentity(result.identity);
       setStatus('connected');
     } catch (e: any) {
