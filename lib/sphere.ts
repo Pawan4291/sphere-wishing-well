@@ -17,15 +17,20 @@ export async function connectWallet(
   );
 
   const result: any = await autoConnect({
-    dapp: {
-      name: 'Sphere Wishing Well',
-      description:
-        'Cast wishes, vote with your wallet, see community predictions come true.',
-      url: typeof window !== 'undefined' ? window.location.origin : '',
-    },
-    walletUrl: SPHERE_WALLET_URL,
-    silent,
-  });
+  dapp: {
+    name: 'Sphere Wishing Well',
+    description: 'Cast wishes, vote with your wallet, see community predictions come true.',
+    url: typeof window !== 'undefined' ? window.location.origin : '',
+    permissions: [
+      'identity:read',
+      'balance:read',
+      'transfer:request',
+      'events:subscribe',
+    ],
+  } as any,
+  walletUrl: SPHERE_WALLET_URL,
+  silent,
+});
 
   const client: any = result?.client ?? result;
   connectClient = client;
