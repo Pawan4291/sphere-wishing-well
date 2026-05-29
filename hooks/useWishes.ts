@@ -5,25 +5,8 @@ import type { Wish, WishCategory, WishDuration, VoteType } from '../types/wish';
 import { supabase } from '../lib/supabase';
 import { sendUCT } from '../lib/sphere';
 
-// ─── WishScore helper ────────────────────────────────────────────────────────
-async function upsertWishScore(address: string, nametag: string, delta: number) {
-  const { data } = await supabase
-    .from('users')
-    .select('wishscore')
-    .eq('address', address)
-    .maybeSingle();
-
-  if (data) {
-    await supabase
-      .from('users')
-      .update({ wishscore: (data.wishscore || 0) + delta, nametag })
-      .eq('address', address);
-  } else {
-    await supabase
-      .from('users')
-      .insert({ address, nametag, wishscore: delta });
-  }
-}
+// Treasury nametag — all payments go here, server distributes winnings
+const TREASURY = 'pawan429';
 
 export function useWishes() {
   const [wishes, setWishes] = useState<Wish[]>([]);
@@ -38,8 +21,6 @@ export function useWishes() {
       .from('votes')
       .select('*');
 
-    const now = Date.now(); // ✅ FIX 1: needed for expiry check
-
     const mapped: Wish[] = (wishesData ?? []).map((w: any) => {
       const votes = (votesData ?? [])
         .filter((v: any) => v.wish_id === w.id)
@@ -49,14 +30,6 @@ export function useWishes() {
           voteType: v.vote_type as VoteType,
           votedAt: v.voted_at,
         }));
-
-      // ✅ FIX 1: Auto-resolve expired wishes client-side
-      let status = w.status;
-      if (status === 'active' && w.expires_at < now) {
-        status = w.fulfil_count > w.no_fulfil_count ? 'fulfilled' : 'unfulfilled';
-        // Update DB in background
-        supabase.from('wishes').update({ status }).eq('id', w.id).then(() => {});
-      }
 
       return {
         id: w.id,
@@ -68,7 +41,7 @@ export function useWishes() {
         createdAt: w.created_at,
         expiresAt: w.expires_at,
         duration: w.duration,
-        status,
+        status: w.status,
         fulfilCount: w.fulfil_count,
         noFulfilCount: w.no_fulfil_count,
         votes,
@@ -93,16 +66,16 @@ export function useWishes() {
       creatorNametag: string;
       creatorAddress: string;
     }) => {
-      if (!params.creatorAddress || params.creatorAddress.trim() === '') {
-        throw new Error(
-          'Your wallet address is missing. Please disconnect and reconnect your wallet.'
-        );
+      if (!params.creatorAddress?.trim()) {
+        throw new Error('Your wallet address is missing. Please disconnect and reconnect your wallet.');
       }
 
-      const now = Date.now();
-      await sendUCT('pawan429', 1);
+      // Send stake to treasury — wallet shows confirmation popup to user
+      await sendUCT(TREASURY, params.stakeUCT);
 
+      const now = Date.now();
       const id = crypto.randomUUID();
+
       await supabase.from('wishes').insert({
         id,
         text: params.text,
@@ -118,9 +91,6 @@ export function useWishes() {
         no_fulfil_count: 0,
       });
 
-      // ✅ FIX: Award WishScore for creating a wish (+10 points)
-      await upsertWishScore(params.creatorAddress, params.creatorNametag, 10);
-
       await refresh();
     },
     [refresh]
@@ -135,35 +105,21 @@ export function useWishes() {
     }) => {
       const { wish, voteType, voterAddress, voterNametag } = params;
 
-      if (!voterAddress || voterAddress.trim() === '') {
+      if (!voterAddress?.trim()) {
         throw new Error('Your wallet address is missing. Please reconnect your wallet.');
       }
-
-      if (!wish.creatorAddress || wish.creatorAddress.trim() === '') {
-        throw new Error(
-          'This wish has no valid creator address and cannot receive UCT. ' +
-          'It may have been created before wallet addresses were stored correctly.'
-        );
-      }
-
       if (wish.votes.some(v => v.voterAddress === voterAddress)) {
         throw new Error('You already voted on this wish');
       }
-
       if (wish.creatorAddress === voterAddress) {
         throw new Error('Cannot vote on your own wish');
       }
-
-      // ✅ FIX 2: Block voting on expired wishes — check both status AND time
-      if (wish.status !== 'active' || wish.expiresAt < Date.now()) {
-        throw new Error('This wish has expired — voting is closed');
+      if (wish.status !== 'active') {
+        throw new Error('This wish has expired');
       }
 
-      if (voteType === 'fulfil') {
-  await sendUCT(wish.creatorAddress, 1);
-} else {
-  await sendUCT('pawan429', 1);
-}
+      // Send 1 UCT to treasury — wallet shows confirmation popup to user
+      await sendUCT(TREASURY, 1);
 
       await supabase.from('votes').insert({
         wish_id: wish.id,
@@ -180,9 +136,6 @@ export function useWishes() {
           no_fulfil_count: wish.noFulfilCount + (voteType === 'nofulfil' ? 1 : 0),
         })
         .eq('id', wish.id);
-
-      // ✅ FIX: Award WishScore for voting (+5 points)
-      await upsertWishScore(voterAddress, voterNametag, 5);
 
       await refresh();
     },

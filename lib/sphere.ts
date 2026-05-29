@@ -12,8 +12,6 @@ export async function connectWallet(
   const { autoConnect } = await import('@unicitylabs/sphere-sdk/connect/browser');
   type PermissionScope = import('@unicitylabs/sphere-sdk/connect').PermissionScope;
 
-  // 'transfer:request' is the working scope — matches MastaP's chess app exactly.
-  // The CONNECT.md 'intent:send' is a newer rename that the live wallet doesn't support yet.
   const PERMISSIONS: PermissionScope[] = [
     'identity:read'    as PermissionScope,
     'transfer:request' as PermissionScope,
@@ -60,18 +58,24 @@ export async function connectWallet(
   return { client: result.client, identity };
 }
 
+// Send UCT to a recipient nametag (e.g. 'pawan429') or address
+// recipient should be a nametag string WITHOUT '@'
+// amount is in UCT whole units (e.g. 1 for 1 UCT)
 export async function sendUCT(
-  recipientAddress: string,
+  recipient: string,
   amountUCT: number
 ): Promise<void> {
   if (!clientInstance) throw new Error('Wallet not connected');
-  if (!recipientAddress) throw new Error('Recipient missing');
+  if (!recipient) throw new Error('Recipient missing');
 
-  console.log('INTENT SEND DEBUG', { recipient: recipientAddress, amount: amountUCT });
+  // SDK intent('send') requires amount as a string
+  const amountStr = String(amountUCT);
+
+  console.log('INTENT SEND DEBUG', { recipient, amount: amountStr, coinId: 'UCT' });
 
   await clientInstance.intent('send', {
-    recipient: recipientAddress,
-    amount: amountUCT,
+    recipient,       // nametag like 'pawan429' or DIRECT:// address
+    amount: amountStr,
     coinId: 'UCT',
   });
 }
