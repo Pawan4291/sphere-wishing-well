@@ -51,34 +51,26 @@ export function useLeaderboard(wishes: Wish[]) {
   // 10pts per wish created, 5pts per fulfil vote received,
   // 2pts per nofulfil vote received, 3pts per vote cast
   const wishScoreUsers = useMemo<LeaderboardEntry[]>(() => {
-    const map = new Map<string, LeaderboardEntry>();
+  const map = new Map<string, LeaderboardEntry>();
 
-    const add = (nametag: string, address: string, pts: number) => {
-      if (!nametag) return;
-      const key = nametag.toLowerCase();
-      if (!map.has(key)) {
-        map.set(key, { nametag, address: address || key, count: 0 });
-      }
-      map.get(key)!.count += pts;
-    };
-
-    wishes.forEach(w => {
-      // Points for creating a wish
-      add(w.creatorNametag, w.creatorAddress, 10);
-      // Points for fulfil votes received on your wish
-      add(w.creatorNametag, w.creatorAddress, w.fulfilCount * 5);
-      // Points for nofulfil votes received
-      add(w.creatorNametag, w.creatorAddress, w.noFulfilCount * 2);
-      // Points for voting
-      w.votes.forEach(v => {
-        add(v.voterNametag, v.voterAddress, 3);
+  wishes.forEach(w => {
+    if (!w.creatorNametag) return;
+    const key = w.creatorNametag.toLowerCase();
+    if (!map.has(key)) {
+      map.set(key, {
+        nametag: w.creatorNametag,
+        address: w.creatorAddress,
+        count: 0,
       });
-    });
+    }
+    // +10 pts per wish created — matches WishScore History exactly
+    map.get(key)!.count += 10;
+  });
 
-    return Array.from(map.values())
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-  }, [wishes]);
+  return Array.from(map.values())
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+}, [wishes]);
 
   return { wishCreators, voters, wishScoreUsers };
 }
