@@ -40,6 +40,24 @@ export default function HomePage() {
       myVotes.push({ description: `Created wish: "${w.text.slice(0, 30)}..."`, points: 10, time: w.createdAt });
     });
 
+myWishes.forEach(w => {
+  for (let i = 0; i < w.fulfilCount; i++) {
+    myVotes.push({
+      description: `Received a Fulfil vote`,
+      points: 3,
+      time: w.createdAt,
+    });
+  }
+
+  for (let i = 0; i < w.noFulfilCount; i++) {
+    myVotes.push({
+      description: `Received a Not Fulfil vote`,
+      points: 2,
+      time: w.createdAt,
+    });
+  }
+});
+
     wishes.forEach(w => {
       w.votes.forEach(v => {
         if (v.voterAddress === myAddress) {
