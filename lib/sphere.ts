@@ -12,61 +12,44 @@ export async function connectWallet(
   silent = false
 ): Promise<{ client: any; identity: WalletIdentity }> {
 
-  const { autoConnect } = await import(
-    '@unicitylabs/sphere-sdk/connect/browser'
-  );
+  const sdk: any = await import('@unicitylabs/sphere-sdk/connect/browser');
 
-  const result = await autoConnect({
+  const transport = new sdk.IframeTransport(SPHERE_WALLET_URL);
+
+  const client = new sdk.ConnectClient({
+    transport,
     dapp: {
       name: 'Sphere Wishing Well',
       description: 'Cast wishes, vote with your wallet, see community predictions come true.',
       url: typeof window !== 'undefined' ? window.location.origin : '',
-      permissions: [
-        'identity:read',
-        'balance:read',
-        'tokens:read',
-        'events:subscribe',
-        'transfer:request',
-      ],
     },
-    walletUrl: SPHERE_WALLET_URL,
+    permissions: [
+      'identity:read',
+      'balance:read',
+      'tokens:read',
+      'events:subscribe',
+      'transfer:request',
+    ],
     silent,
-  } as any);
+  });
 
-  clientInstance = result.client;
+  await client.connect();
+  clientInstance = client;
 
-  const raw: any = result.connection?.identity ?? {};
-  console.log('IDENTITY RAW from connection:', raw);
-
-  let directAddress = raw?.directAddress || '';
-  let nametag = raw?.nametag || '';
-  let l1Address = raw?.l1Address || '';
-  let chainPubkey = raw?.chainPubkey || '';
-
-  if (!nametag) {
-    try {
-      const queried: any = await result.client.query('sphere_getIdentity');
-      console.log('IDENTITY RAW from query:', queried);
-      directAddress = queried?.directAddress || directAddress;
-      nametag = queried?.nametag || nametag;
-      l1Address = queried?.l1Address || l1Address;
-      chainPubkey = queried?.chainPubkey || chainPubkey;
-    } catch (e) {
-      console.warn('sphere_getIdentity query failed:', e);
-    }
-  }
+  const raw: any = await client.query('sphere_getIdentity');
+  console.log('IDENTITY RAW:', raw);
 
   const identity: WalletIdentity = {
-    nametag,
-    directAddress,
-    l1Address,
-    chainPubkey,
+    nametag: raw?.nametag || '',
+    directAddress: raw?.directAddress || '',
+    l1Address: raw?.l1Address || '',
+    chainPubkey: raw?.chainPubkey || '',
   };
 
   identityCache = identity;
   console.log('FINAL IDENTITY:', identity);
 
-  return { client: result.client, identity };
+  return { client, identity };
 }
 
 export async function sendUCT(
@@ -84,10 +67,7 @@ export async function sendUCT(
 
   const amount = (amountUCT * 1000000).toString();
 
-  console.log('PAYMENTS SEND DEBUG', {
-    recipient: recipientAddress,
-    amount,
-  });
+  console.log('PAYMENTS SEND DEBUG', { recipient: recipientAddress, amount });
 
   await clientInstance.payments.send({
     recipient: recipientAddress,
