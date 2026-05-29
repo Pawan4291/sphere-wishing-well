@@ -12,13 +12,11 @@ export async function connectWallet(
   const { autoConnect } = await import('@unicitylabs/sphere-sdk/connect/browser');
   type PermissionScope = import('@unicitylabs/sphere-sdk/connect').PermissionScope;
 
-  // Correct scopes from CONNECT.md permission table:
-  //   identity:read  → sphere_getIdentity
-  //   intent:send    → send intent (replaces old transfer:request)
-  //   events:subscribe → transfer:incoming events
+  // 'transfer:request' is the working scope — matches MastaP's chess app exactly.
+  // The CONNECT.md 'intent:send' is a newer rename that the live wallet doesn't support yet.
   const PERMISSIONS: PermissionScope[] = [
     'identity:read'    as PermissionScope,
-    'intent:send'      as PermissionScope,
+    'transfer:request' as PermissionScope,
     'events:subscribe' as PermissionScope,
   ];
 
@@ -62,9 +60,6 @@ export async function connectWallet(
   return { client: result.client, identity };
 }
 
-// ── sendUCT — now uses client.intent('send', ...) per CONNECT.md ──────────
-// The old clientInstance.payments.send() was wrong — ConnectClient uses intents.
-// client.intent('send', { recipient, amount, coinId }) is the correct API.
 export async function sendUCT(
   recipientAddress: string,
   amountUCT: number
@@ -74,7 +69,6 @@ export async function sendUCT(
 
   console.log('INTENT SEND DEBUG', { recipient: recipientAddress, amount: amountUCT });
 
-  // amount is a number (UCT units), recipient is nametag or address
   await clientInstance.intent('send', {
     recipient: recipientAddress,
     amount: amountUCT,
