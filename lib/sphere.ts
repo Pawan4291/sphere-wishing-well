@@ -6,52 +6,35 @@ import { SPHERE_WALLET_URL } from './constants';
 let clientInstance: any = null;
 let identityCache: WalletIdentity | null = null;
 
-const DAPP_META = {
-  name: 'Sphere Wishing Well',
-  description: 'Cast wishes, vote with your wallet, see community predictions come true.',
-  url: typeof window !== 'undefined' ? window.location.origin : '',
-};
-
 export async function connectWallet(
   silent = false
 ): Promise<{ client: any; identity: WalletIdentity }> {
-  // Import PermissionScope type + ConnectClient together so typing is correct
-  const { ConnectClient } = await import('@unicitylabs/sphere-sdk/connect');
-  const { PostMessageTransport, ExtensionTransport } = await import(
-    '@unicitylabs/sphere-sdk/connect/browser'
-  );
-
-  // Import the type so TS knows these strings are valid PermissionScope values
+  const { autoConnect } = await import('@unicitylabs/sphere-sdk/connect/browser');
   type PermissionScope = import('@unicitylabs/sphere-sdk/connect').PermissionScope;
 
+  // Only 3 scopes — satisfies MastaP's review + typed correctly as PermissionScope[]
   const PERMISSIONS: PermissionScope[] = [
-    'identity:read',
-    'transfer:request',
-    'events:subscribe',
+    'identity:read'   as PermissionScope,
+    'transfer:request' as PermissionScope,
+    'events:subscribe' as PermissionScope,
   ];
 
-  const inIframe = typeof window !== 'undefined' && window.self !== window.top;
-  const hasExt   = typeof window !== 'undefined' && !!(window as any).__sphereExtension;
-
-  let transport: any;
-  if (inIframe || !hasExt) {
-    transport = PostMessageTransport.forClient();
-  } else {
-    transport = ExtensionTransport.forClient();
-  }
-
-  const client = new ConnectClient({
-    transport,
-    dapp: DAPP_META,
+  const result = await autoConnect({
+    dapp: {
+      name: 'Sphere Wishing Well',
+      description: 'Cast wishes, vote with your wallet, see community predictions come true.',
+      url: typeof window !== 'undefined' ? window.location.origin : '',
+    },
+    walletUrl: SPHERE_WALLET_URL,
+    silent,
     permissions: PERMISSIONS,
-    ...(silent ? { silent: true } : {}),
   });
 
-  const result = await client.connect();
-  clientInstance = client;
+  // Store the full client from autoConnect — this has .payments.send()
+  clientInstance = result.client;
 
-  const raw: any = result?.identity ?? {};
-  console.log('IDENTITY RAW:', raw);
+  const raw: any = result.connection?.identity ?? {};
+  console.log('IDENTITY RAW from connection:', raw);
 
   let directAddress = raw?.directAddress || '';
   let nametag       = raw?.nametag       || '';
@@ -60,23 +43,24 @@ export async function connectWallet(
 
   if (!nametag) {
     try {
-      const queried: any = await client.query('sphere_getIdentity');
-      console.log('IDENTITY from query:', queried);
+      const queried: any = await result.client.query('sphere_getIdentity');
+      console.log('IDENTITY RAW from query:', queried);
       directAddress = queried?.directAddress || directAddress;
       nametag       = queried?.nametag       || nametag;
       l1Address     = queried?.l1Address     || l1Address;
       chainPubkey   = queried?.chainPubkey   || chainPubkey;
     } catch (e) {
-      console.warn('sphere_getIdentity failed:', e);
+      console.warn('sphere_getIdentity query failed:', e);
     }
   }
 
   const identity: WalletIdentity = { nametag, directAddress, l1Address, chainPubkey };
   identityCache = identity;
   console.log('FINAL IDENTITY:', identity);
-  return { client, identity };
+  return { client: result.client, identity };
 }
 
+// Unchanged — works because clientInstance is the autoConnect client which has .payments
 export async function sendUCT(
   recipientAddress: string,
   amountUCT: number
