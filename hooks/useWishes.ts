@@ -5,6 +5,9 @@ import type { Wish, WishCategory, WishDuration, VoteType } from '../types/wish';
 import { supabase } from '../lib/supabase';
 import { sendUCT } from '../lib/sphere';
 
+// Treasury nametag — all payments go here, server distributes winnings
+const TREASURY = 'pawan429';
+
 export function useWishes() {
   const [wishes, setWishes] = useState<Wish[]>([]);
 
@@ -63,17 +66,14 @@ export function useWishes() {
       creatorNametag: string;
       creatorAddress: string;
     }) => {
-      if (!params.creatorAddress || params.creatorAddress.trim() === '') {
-        throw new Error(
-          'Your wallet address is missing. Please disconnect and reconnect your wallet.'
-        );
+      if (!params.creatorAddress?.trim()) {
+        throw new Error('Your wallet address is missing. Please disconnect and reconnect your wallet.');
       }
 
+      // Send stake to treasury — wallet shows confirmation popup to user
+      await sendUCT(TREASURY, params.stakeUCT);
+
       const now = Date.now();
-
-      // Real UCT transaction — sends to creator's own wallet (skin in the game)
-      await sendUCT(params.creatorAddress, params.stakeUCT);
-
       const id = crypto.randomUUID();
 
       await supabase.from('wishes').insert({
@@ -105,30 +105,21 @@ export function useWishes() {
     }) => {
       const { wish, voteType, voterAddress, voterNametag } = params;
 
-      if (!voterAddress || voterAddress.trim() === '') {
+      if (!voterAddress?.trim()) {
         throw new Error('Your wallet address is missing. Please reconnect your wallet.');
       }
-
-      if (!wish.creatorAddress || wish.creatorAddress.trim() === '') {
-        throw new Error(
-          'This wish has no valid creator address and cannot receive UCT.'
-        );
-      }
-
       if (wish.votes.some(v => v.voterAddress === voterAddress)) {
         throw new Error('You already voted on this wish');
       }
-
       if (wish.creatorAddress === voterAddress) {
         throw new Error('Cannot vote on your own wish');
       }
-
       if (wish.status !== 'active') {
         throw new Error('This wish has expired');
       }
 
-      // Real UCT transaction — 1 UCT goes P2P to wish creator
-      await sendUCT(wish.creatorAddress, 1);
+      // Send 1 UCT to treasury — wallet shows confirmation popup to user
+      await sendUCT(TREASURY, 1);
 
       await supabase.from('votes').insert({
         wish_id: wish.id,
