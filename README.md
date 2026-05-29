@@ -7,7 +7,7 @@ A community prediction board built on Unicity Sphere.
 - Other users vote: ✅ Fulfil or ❌ Not Fulfil (costs 1 UCT per vote, goes P2P to wish creator)
 - When timer expires: green card = wish fulfilled (more YES votes), red card = not fulfilled
 - One wallet = one vote per wish. Cannot vote on your own wish.
-- Two leaderboards: Most Wishes Created / Most Votes Cast
+- Three leaderboards: Top Wishers, Top Voters, and WishScore Rankings
 
 ---
 
@@ -33,6 +33,36 @@ Unicity Testnet (L3 state transitions)
 
 Data Storage: localStorage (no backend needed)
 ```
+
+## WishScore System
+
+WishScore rewards participation and engagement.
+
+- Create a wish: +10 points
+- Cast a vote: +5 points
+- Receive a Fulfil vote: +3 points
+- Receive a Not Fulfil vote: +2 points
+
+Total WishScore determines a user's global ranking on the WishScore leaderboard.
+WishScore Formula
+
+(10 × Wishes Created)
++ (5 × Votes Cast)
++ (3 × Fulfil Votes Received)
++ (2 × Not Fulfil Votes Received)
+
+
+## PERMISSIONS USED
+
+Sphere Wishing Well only requests the permissions required for functionality:
+
+- identity:read
+- balance:read
+- transfer:request
+- events:subscribe
+
+The app does not request messaging, invoice, signing, or other advanced permissions.
+
 
 ---
 
@@ -70,7 +100,7 @@ sphere-wishing-well/
 │   ├── WishCard.tsx        ← Single wish + vote buttons
 │   ├── CreateWishModal.tsx ← Modal to create wish
 │   ├── CountdownTimer.tsx  ← Live countdown per card
-│   └── Leaderboard.tsx     ← Two tabs: creators / voters
+│   └── Leaderboard.tsx     ← Wishers, Voters and WishScore rankings
 ├── hooks/
 │   ├── useSphereWallet.ts  ← Wallet connect state
 │   ├── useWishes.ts        ← All wish CRUD + voting
@@ -195,7 +225,7 @@ First social prediction app on Sphere with real UCT wallet integration.
 - Community votes ✅ Fulfil or ❌ Not Fulfil (1 UCT per vote, P2P to wish creator)
 - One wallet = one vote per wish
 - When time expires: green (fulfilled) or red (not fulfilled) resolution
-- Two leaderboards: top wishers + top voters
+- Three leaderboards: top wishers, top voters and WishScore rankings
 - Real-time incoming transfer events
 
 **Wallet integration:**
