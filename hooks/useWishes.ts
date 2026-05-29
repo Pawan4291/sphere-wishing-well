@@ -5,8 +5,7 @@ import type { Wish, WishCategory, WishDuration, VoteType } from '../types/wish';
 import { supabase } from '../lib/supabase';
 import { sendUCT } from '../lib/sphere';
 
-// Treasury nametag — all payments go here, server distributes winnings
-const TREASURY = 'pawan429';
+const TREASURY = '@pawan429';
 
 export function useWishes() {
   const [wishes, setWishes] = useState<Wish[]>([]);
@@ -70,7 +69,7 @@ export function useWishes() {
         throw new Error('Your wallet address is missing. Please disconnect and reconnect your wallet.');
       }
 
-      // Send stake to treasury — wallet shows confirmation popup to user
+      // Wish stake always goes to treasury (@pawan429)
       await sendUCT(TREASURY, params.stakeUCT);
 
       const now = Date.now();
@@ -118,8 +117,13 @@ export function useWishes() {
         throw new Error('This wish has expired');
       }
 
-      // Send 1 UCT to treasury — wallet shows confirmation popup to user
-      await sendUCT(TREASURY, 1);
+      // ✅ Fulfil → UCT goes to wish creator (rewards the creator)
+      // ❌ Not Fulfil → UCT goes to treasury @pawan429
+      const recipient = voteType === 'fulfil'
+        ? wish.creatorAddress
+        : TREASURY;
+
+      await sendUCT(recipient, 1);
 
       await supabase.from('votes').insert({
         wish_id: wish.id,
