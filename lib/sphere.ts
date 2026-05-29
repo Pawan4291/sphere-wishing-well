@@ -58,9 +58,7 @@ export async function connectWallet(
   return { client: result.client, identity };
 }
 
-// Send UCT to a recipient nametag (e.g. 'pawan429') or address
-// recipient should be a nametag string WITHOUT '@'
-// amount is in UCT whole units (e.g. 1 for 1 UCT)
+// Use payments.send — this is what worked originally before any of my changes
 export async function sendUCT(
   recipient: string,
   amountUCT: number
@@ -68,15 +66,13 @@ export async function sendUCT(
   if (!clientInstance) throw new Error('Wallet not connected');
   if (!recipient) throw new Error('Recipient missing');
 
-  // SDK intent('send') requires amount as a string
-  const amountStr = String(amountUCT);
+  const amount = (amountUCT * 1000000).toString();
+  console.log('PAYMENTS SEND DEBUG', { recipient, amount });
 
-  console.log('INTENT SEND DEBUG', { recipient, amount: amountStr, coinId: 'UCT' });
-
-  await clientInstance.intent('send', {
-    recipient,       // nametag like 'pawan429' or DIRECT:// address
-    amount: amountStr,
+  await clientInstance.payments.send({
+    recipient,
     coinId: 'UCT',
+    amount,
   });
 }
 
