@@ -5,11 +5,24 @@ import type { Wish, WishCategory, WishDuration, VoteType } from '../types/wish';
 import { supabase } from '../lib/supabase';
 import { sendUCT } from '../lib/sphere';
 
-// Treasury nametag — all payments go here, server distributes winnings
-const TREASURY = 'pawan429';
-
 export function useWishes() {
   const [wishes, setWishes] = useState<Wish[]>([]);
+
+  const resolveExpired = useCallback(async (wishes: Wish[]) => {
+    const now = Date.now();
+    const expired = wishes.filter(
+      w => w.status === 'active' && w.expiresAt <= now
+    );
+    for (const w of expired) {
+      const newStatus = w.fulfilCount >= w.noFulfilCount ? 'fulfilled' : 'unfulfilled';
+      await supabase
+        .from('wishes')
+        .update({ status: newStatus })
+        .eq('id', w.id);
+    }
+    if (expired.length > 0) return true;
+    return false;
+  }, []);
 
   const refresh = useCallback(async () => {
     const { data: wishesData } = await supabase
@@ -48,8 +61,37 @@ export function useWishes() {
       } as Wish;
     });
 
+    // Resolve expired wishes in Supabase
+    const hadExpired = await resolveExpired(mapped);
+    if (hadExpired) {
+      // Refresh again to get updated statuses
+      const { data: fresh } = await supabase
+        .from('wishes')
+        .select('*')
+        .order('created_at', { ascending: false });
+      const refreshed: Wish[] = (fresh ?? []).map((w: any) => {
+        const votes = (votesData ?? [])
+          .filter((v: any) => v.wish_id === w.id)
+          .map((v: any) => ({
+            voterAddress: v.voter_address,
+            voterNametag: v.voter_nametag,
+            voteType: v.vote_type as VoteType,
+            votedAt: v.voted_at,
+          }));
+        return {
+          id: w.id, text: w.text, category: w.category,
+          creatorNametag: w.creator_nametag, creatorAddress: w.creator_address,
+          stakedUCT: w.staked_uct, createdAt: w.created_at,
+          expiresAt: w.expires_at, duration: w.duration, status: w.status,
+          fulfilCount: w.fulfil_count, noFulfilCount: w.no_fulfil_count, votes,
+        } as Wish;
+      });
+      setWishes(refreshed);
+      return;
+    }
+
     setWishes(mapped);
-  }, []);
+  }, [resolveExpired]);
 
   useEffect(() => {
     refresh();
@@ -66,16 +108,18 @@ export function useWishes() {
       creatorNametag: string;
       creatorAddress: string;
     }) => {
-      if (!params.creatorAddress?.trim()) {
+      if (!params.creatorAddress || params.creatorAddress.trim() === '') {
         throw new Error('Your wallet address is missing. Please disconnect and reconnect your wallet.');
       }
 
-      // Send stake to treasury — wallet shows confirmation popup to user
-      await sendUCT(TREASURY, params.stakeUCT);
-
       const now = Date.now();
-      const id = crypto.randomUUID();
+      await sendUCT(
+        params.creatorAddress,
+        params.stakeUCT,
+        `Wish stake · ${params.text.slice(0, 30)} · by @${params.creatorNametag}`
+      );
 
+      const id = crypto.randomUUID();
       await supabase.from('wishes').insert({
         id,
         text: params.text,
@@ -105,8 +149,11 @@ export function useWishes() {
     }) => {
       const { wish, voteType, voterAddress, voterNametag } = params;
 
-      if (!voterAddress?.trim()) {
+      if (!voterAddress || voterAddress.trim() === '') {
         throw new Error('Your wallet address is missing. Please reconnect your wallet.');
+      }
+      if (!wish.creatorAddress || wish.creatorAddress.trim() === '') {
+        throw new Error('This wish has no valid creator address.');
       }
       if (wish.votes.some(v => v.voterAddress === voterAddress)) {
         throw new Error('You already voted on this wish');
@@ -118,8 +165,11 @@ export function useWishes() {
         throw new Error('This wish has expired');
       }
 
-      // Send 1 UCT to treasury — wallet shows confirmation popup to user
-      await sendUCT(TREASURY, 1);
+      await sendUCT(
+        wish.creatorAddress,
+        1,
+        `Vote · ${wish.text.slice(0, 30)} · by @${voterNametag}`
+      );
 
       await supabase.from('votes').insert({
         wish_id: wish.id,
