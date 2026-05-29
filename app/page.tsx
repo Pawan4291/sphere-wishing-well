@@ -223,7 +223,7 @@ transition-all duration-200
               <WishCard
                 key={wish.id}
                 wish={wish}
-                currentAddress={wallet.identity?.nametag}
+                currentAddress={wallet.identity?.directAddress}
                 onVote={handleVote}
               />
             ))
@@ -291,7 +291,7 @@ z-50
             <Leaderboard
               wishCreators={wishCreators}
               voters={voters}
-              wishScoreUsers={wishScoreUsers}
+              wishes={wishes}
             />
           </div>
         </div>
