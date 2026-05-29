@@ -12,10 +12,13 @@ export async function connectWallet(
   const { autoConnect } = await import('@unicitylabs/sphere-sdk/connect/browser');
   type PermissionScope = import('@unicitylabs/sphere-sdk/connect').PermissionScope;
 
-  // Only 3 scopes — satisfies MastaP's review + typed correctly as PermissionScope[]
+  // Correct scopes from CONNECT.md permission table:
+  //   identity:read  → sphere_getIdentity
+  //   intent:send    → send intent (replaces old transfer:request)
+  //   events:subscribe → transfer:incoming events
   const PERMISSIONS: PermissionScope[] = [
-    'identity:read'   as PermissionScope,
-    'transfer:request' as PermissionScope,
+    'identity:read'    as PermissionScope,
+    'intent:send'      as PermissionScope,
     'events:subscribe' as PermissionScope,
   ];
 
@@ -30,7 +33,6 @@ export async function connectWallet(
     permissions: PERMISSIONS,
   });
 
-  // Store the full client from autoConnect — this has .payments.send()
   clientInstance = result.client;
 
   const raw: any = result.connection?.identity ?? {};
@@ -60,7 +62,9 @@ export async function connectWallet(
   return { client: result.client, identity };
 }
 
-// Unchanged — works because clientInstance is the autoConnect client which has .payments
+// ── sendUCT — now uses client.intent('send', ...) per CONNECT.md ──────────
+// The old clientInstance.payments.send() was wrong — ConnectClient uses intents.
+// client.intent('send', { recipient, amount, coinId }) is the correct API.
 export async function sendUCT(
   recipientAddress: string,
   amountUCT: number
@@ -68,13 +72,13 @@ export async function sendUCT(
   if (!clientInstance) throw new Error('Wallet not connected');
   if (!recipientAddress) throw new Error('Recipient missing');
 
-  const amount = (amountUCT * 1000000).toString();
-  console.log('PAYMENTS SEND DEBUG', { recipient: recipientAddress, amount });
+  console.log('INTENT SEND DEBUG', { recipient: recipientAddress, amount: amountUCT });
 
-  await clientInstance.payments.send({
+  // amount is a number (UCT units), recipient is nametag or address
+  await clientInstance.intent('send', {
     recipient: recipientAddress,
+    amount: amountUCT,
     coinId: 'UCT',
-    amount,
   });
 }
 
