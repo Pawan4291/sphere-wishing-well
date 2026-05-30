@@ -104,10 +104,16 @@ myWishes.forEach(w => {
           ? wishes.filter(w => w.votes.some(v => v.voterAddress === myAddress))
           : [];
 
-      case 'resolved':
+      case 'resolved': {
+        const now = Date.now();
         return [...wishes]
-          .filter(w => w.status === 'fulfilled' || w.status === 'unfulfilled')
+          .filter(w =>
+            w.status === 'fulfilled' ||
+            w.status === 'unfulfilled' ||
+            (w.status === 'active' && w.expiresAt <= now)
+          )
           .sort((a, b) => b.expiresAt - a.expiresAt);
+      }
 
       default:
         return wishes;
