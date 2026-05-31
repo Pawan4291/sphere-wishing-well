@@ -16,10 +16,11 @@ export function useWishes() {
       .select('*')
       .order('created_at', { ascending: false });
 
+    // ✅ FIX: raise limit from default 1000 to 10000
     const { data: votesData } = await supabase
-  .from('votes')
-  .select('*')
-  .limit(10000);
+      .from('votes')
+      .select('*')
+      .limit(10000);
 
     const mapped: Wish[] = (wishesData ?? []).map((w: any) => {
       const votes = (votesData ?? [])
@@ -66,16 +67,16 @@ export function useWishes() {
       creatorNametag: string;
       creatorAddress: string;
     }) => {
-      if (!params.creatorAddress?.trim()) {
+      if (!params.creatorAddress || params.creatorAddress.trim() === '') {
         throw new Error('Your wallet address is missing. Please disconnect and reconnect your wallet.');
       }
 
-      // Wish stake always goes to treasury (@pawan429)
+      const now = Date.now();
+
+      // Stake goes to treasury
       await sendUCT(TREASURY, params.stakeUCT);
 
-      const now = Date.now();
       const id = crypto.randomUUID();
-
       await supabase.from('wishes').insert({
         id,
         text: params.text,
@@ -105,33 +106,37 @@ export function useWishes() {
     }) => {
       const { wish, voteType, voterAddress, voterNametag } = params;
 
-      if (!voterAddress?.trim()) {
+      if (!voterAddress || voterAddress.trim() === '') {
         throw new Error('Your wallet address is missing. Please reconnect your wallet.');
       }
-      // Double-check against DB directly, not just local state
-const { data: existingVote } = await supabase
-  .from('votes')
-  .select('id')
-  .eq('wish_id', wish.id)
-  .eq('voter_address', voterAddress)
-  .maybeSingle();
 
-if (existingVote || wish.votes.some(v => v.voterAddress === voterAddress)) {
-  throw new Error('You already voted on this wish');
-}
+      if (!wish.creatorAddress || wish.creatorAddress.trim() === '') {
+        throw new Error('This wish has no valid creator address.');
+      }
+
+      // ✅ FIX: DB-level check to prevent duplicate votes
+      const { data: existingVote } = await supabase
+        .from('votes')
+        .select('id')
+        .eq('wish_id', wish.id)
+        .eq('voter_address', voterAddress)
+        .maybeSingle();
+
+      if (existingVote || wish.votes.some(v => v.voterAddress === voterAddress)) {
+        throw new Error('You already voted on this wish');
+      }
+
       if (wish.creatorAddress === voterAddress) {
         throw new Error('Cannot vote on your own wish');
       }
+
+      // ✅ FIX: check expiry time too, not just status
       if (wish.status !== 'active' || wish.expiresAt < Date.now()) {
-  throw new Error('This wish has expired — voting is closed');
-}
+        throw new Error('This wish has expired — voting is closed');
+      }
 
-      // ✅ Fulfil → UCT goes to wish creator (rewards the creator)
-      // ❌ Not Fulfil → UCT goes to treasury @pawan429
-      const recipient = voteType === 'fulfil'
-        ? wish.creatorAddress
-        : TREASURY;
-
+      // ✅ Fulfil → UCT to wish creator | Not Fulfil → UCT to treasury
+      const recipient = voteType === 'fulfil' ? wish.creatorAddress : TREASURY;
       await sendUCT(recipient, 1);
 
       await supabase.from('votes').insert({
