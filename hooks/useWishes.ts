@@ -11,50 +11,55 @@ export function useWishes() {
   const [wishes, setWishes] = useState<Wish[]>([]);
 
   const refresh = useCallback(async () => {
-    const { data: wishesData } = await supabase
-      .from('wishes')
-      .select('*')
-      .order('created_at', { ascending: false });
+  const { data: wishesData } = await supabase
+    .from('wishes')
+    .select('*')
+    .order('created_at', { ascending: false });
 
-    // ✅ FIX: raise limit from default 1000 to 10000
-    const wishIds = (wishesData ?? []).map((w: any) => w.id);
-
-const { data: votesData } = wishIds.length > 0
-  ? await supabase
+  // ✅ FIX: fetch votes in batches to bypass 1000 row limit
+  const wishIds = (wishesData ?? []).map((w: any) => w.id);
+  
+  let allVotes: any[] = [];
+  
+  // Fetch in chunks of 50 wish IDs at a time
+  for (let i = 0; i < wishIds.length; i += 50) {
+    const chunk = wishIds.slice(i, i + 50);
+    const { data: chunkVotes } = await supabase
       .from('votes')
       .select('*')
-      .in('wish_id', wishIds)
-  : { data: [] };
+      .in('wish_id', chunk);
+    if (chunkVotes) allVotes = allVotes.concat(chunkVotes);
+  }
 
-    const mapped: Wish[] = (wishesData ?? []).map((w: any) => {
-      const votes = (votesData ?? [])
-        .filter((v: any) => v.wish_id === w.id)
-        .map((v: any) => ({
-          voterAddress: v.voter_address,
-          voterNametag: v.voter_nametag,
-          voteType: v.vote_type as VoteType,
-          votedAt: v.voted_at,
-        }));
+  const mapped: Wish[] = (wishesData ?? []).map((w: any) => {
+    const votes = allVotes
+      .filter((v: any) => v.wish_id === w.id)
+      .map((v: any) => ({
+        voterAddress: v.voter_address,
+        voterNametag: v.voter_nametag,
+        voteType: v.vote_type as VoteType,
+        votedAt: v.voted_at,
+      }));
 
-      return {
-        id: w.id,
-        text: w.text,
-        category: w.category,
-        creatorNametag: w.creator_nametag,
-        creatorAddress: w.creator_address,
-        stakedUCT: w.staked_uct,
-        createdAt: w.created_at,
-        expiresAt: w.expires_at,
-        duration: w.duration,
-        status: w.status,
-        fulfilCount: w.fulfil_count,
-        noFulfilCount: w.no_fulfil_count,
-        votes,
-      } as Wish;
-    });
+    return {
+      id: w.id,
+      text: w.text,
+      category: w.category,
+      creatorNametag: w.creator_nametag,
+      creatorAddress: w.creator_address,
+      stakedUCT: w.staked_uct,
+      createdAt: w.created_at,
+      expiresAt: w.expires_at,
+      duration: w.duration,
+      status: w.status,
+      fulfilCount: w.fulfil_count,
+      noFulfilCount: w.no_fulfil_count,
+      votes,
+    } as Wish;
+  });
 
-    setWishes(mapped);
-  }, []);
+  setWishes(mapped);
+}, []);
 
   useEffect(() => {
     refresh();
