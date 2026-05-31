@@ -17,10 +17,14 @@ export function useWishes() {
       .order('created_at', { ascending: false });
 
     // ✅ FIX: raise limit from default 1000 to 10000
-    const { data: votesData } = await supabase
+    const wishIds = (wishesData ?? []).map((w: any) => w.id);
+
+const { data: votesData } = wishIds.length > 0
+  ? await supabase
       .from('votes')
       .select('*')
-      .limit(10000);
+      .in('wish_id', wishIds)
+  : { data: [] };
 
     const mapped: Wish[] = (wishesData ?? []).map((w: any) => {
       const votes = (votesData ?? [])
