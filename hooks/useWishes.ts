@@ -107,9 +107,17 @@ export function useWishes() {
       if (!voterAddress?.trim()) {
         throw new Error('Your wallet address is missing. Please reconnect your wallet.');
       }
-      if (wish.votes.some(v => v.voterAddress === voterAddress)) {
-        throw new Error('You already voted on this wish');
-      }
+      // Double-check against DB directly, not just local state
+const { data: existingVote } = await supabase
+  .from('votes')
+  .select('id')
+  .eq('wish_id', wish.id)
+  .eq('voter_address', voterAddress)
+  .maybeSingle();
+
+if (existingVote || wish.votes.some(v => v.voterAddress === voterAddress)) {
+  throw new Error('You already voted on this wish');
+}
       if (wish.creatorAddress === voterAddress) {
         throw new Error('Cannot vote on your own wish');
       }
