@@ -17,8 +17,9 @@ export function useWishes() {
       .order('created_at', { ascending: false });
 
     const { data: votesData } = await supabase
-      .from('votes')
-      .select('*');
+  .from('votes')
+  .select('*')
+  .limit(10000);
 
     const mapped: Wish[] = (wishesData ?? []).map((w: any) => {
       const votes = (votesData ?? [])
@@ -121,9 +122,9 @@ if (existingVote || wish.votes.some(v => v.voterAddress === voterAddress)) {
       if (wish.creatorAddress === voterAddress) {
         throw new Error('Cannot vote on your own wish');
       }
-      if (wish.status !== 'active') {
-        throw new Error('This wish has expired');
-      }
+      if (wish.status !== 'active' || wish.expiresAt < Date.now()) {
+  throw new Error('This wish has expired — voting is closed');
+}
 
       // ✅ Fulfil → UCT goes to wish creator (rewards the creator)
       // ❌ Not Fulfil → UCT goes to treasury @pawan429

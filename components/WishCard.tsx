@@ -450,8 +450,9 @@ export default function WishCard({
 
         {/* BUTTONS */}
         {isActive &&
-          !alreadyVoted &&
-          !isOwnWish && (
+  !alreadyVoted &&
+  !isOwnWish &&
+  currentAddress && (
 
           <div
             className="
