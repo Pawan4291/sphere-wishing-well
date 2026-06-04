@@ -1,6 +1,7 @@
 'use client';
 
 import OnboardingModal from '../components/OnboardingModal';
+import CooldownTimer from '../components/CooldownTimer';
 import { useState, useMemo } from 'react';
 import type { Wish, VoteType, WishCategory, WishDuration } from '../types/wish';
 import { useSphereWallet } from '../hooks/useSphereWallet';
@@ -24,13 +25,31 @@ export default function HomePage() {
   const [showCreate, setShowCreate] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showWishScore, setShowWishScore] = useState(false);
-
+const [showVoteLimit, setShowVoteLimit] = useState(false);
   const totalVotes = useMemo(
     () => wishes.reduce((sum, w) => sum + w.votes.length, 0),
     [wishes]
   );
 
   const myAddress = wallet.identity?.nametag ?? '';
+
+  const myWishesToday = useMemo(() => {
+  const oneDayAgo = Date.now() - 86400000;
+  return wishes.filter(w => w.creatorAddress === myAddress && w.createdAt > oneDayAgo);
+}, [wishes, myAddress]);
+
+const myVotesToday = useMemo(() => {
+  const oneDayAgo = Date.now() - 86400000;
+  return wishes.reduce((count, w) =>
+    count + w.votes.filter(v => v.voterAddress === myAddress && v.votedAt > oneDayAgo).length
+  , 0);
+}, [wishes, myAddress]);
+
+const wishCooldownMs = useMemo(() => {
+  if (myWishesToday.length === 0) return 0;
+  const earliest = Math.min(...myWishesToday.map(w => w.createdAt));
+  return Math.max(0, (earliest + 86400000) - Date.now());
+}, [myWishesToday]);
 
   const myWishScoreHistory = useMemo(() => {
     const myWishes = wishes.filter(w => w.creatorAddress === myAddress);
@@ -137,16 +156,13 @@ myWishes.forEach(w => {
   };
 
   const handleVote = async (wish: Wish, voteType: VoteType) => {
-    if (!wallet.identity?.nametag) {
-      throw new Error('Connect wallet first');
-    }
-    await vote({
-      wish,
-      voteType,
-      voterAddress: wallet.identity.nametag,
-      voterNametag: wallet.identity.nametag,
-    });
-  };
+  if (!wallet.identity?.nametag) throw new Error('Connect wallet first');
+  if (myVotesToday >= 3) {
+    setShowVoteLimit(true);
+    return;
+  }
+  await vote({ wish, voteType, voterAddress: wallet.identity.nametag, voterNametag: wallet.identity.nametag });
+};
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'hot',        label: '🔥 Trending'   },
@@ -166,6 +182,9 @@ myWishes.forEach(w => {
             w-[600px] h-[600px] rounded-full
             bg-amber-500/3 blur-[120px]"
         />
+
+
+        
       </div>
 
       <Header
@@ -269,26 +288,21 @@ transition-all duration-200
       </main>
 
       {/* Floating Button */}
-      {wallet.isConnected && (
-        <button
-          onClick={() => setShowCreate(true)}
-          className="
-fixed bottom-6 right-6
-px-5 py-4
-rounded-2xl
-bg-amber-500
-hover:bg-amber-400
-text-black
-font-bold
-shadow-2xl
-shadow-amber-500/20
-transition-all
-z-50
-"
-        >
-          ✨ Cast Wish
-        </button>
-      )}
+{wallet.isConnected && (
+  wishCooldownMs > 0 ? (
+    <div className="fixed bottom-6 right-6 z-50 bg-slate-800 border border-slate-700 rounded-2xl px-5 py-3 text-center shadow-2xl">
+      <div className="text-xs text-slate-400 mb-1">Next wish available in</div>
+      <CooldownTimer ms={wishCooldownMs} />
+    </div>
+  ) : (
+    <button
+      onClick={() => setShowCreate(true)}
+      className="fixed bottom-6 right-6 px-5 py-4 rounded-2xl bg-amber-500 hover:bg-amber-400 text-black font-bold shadow-2xl shadow-amber-500/20 transition-all z-50"
+    >
+      ✨ Cast Wish
+    </button>
+  )
+)}
 
       {/* Create Wish Modal */}
       <CreateWishModal
@@ -362,6 +376,30 @@ z-50
           </div>
         </div>
       )}
+
+      {/* Vote Limit Modal */}
+{showVoteLimit && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+    onClick={() => setShowVoteLimit(false)}>
+    <div className="w-full max-w-sm bg-slate-900 rounded-2xl p-6 text-center border border-slate-700"
+      onClick={e => e.stopPropagation()}>
+      <div className="text-4xl mb-3">🗳️</div>
+      <h2 className="text-lg font-bold text-white mb-1">Daily Vote Limit Reached</h2>
+      <p className="text-slate-400 text-sm mb-4">You've used all 3 votes for today. Resets in:</p>
+      <CooldownTimer ms={(() => {
+        const oneDayAgo = Date.now() - 86400000;
+        const times = wishes.flatMap(w =>
+          w.votes.filter(v => v.voterAddress === myAddress && v.votedAt > oneDayAgo).map(v => v.votedAt)
+        ).sort((a, b) => a - b);
+        return Math.max(0, ((times[0] ?? Date.now()) + 86400000) - Date.now());
+      })()} />
+      <button onClick={() => setShowVoteLimit(false)}
+        className="mt-4 px-6 py-2 rounded-full bg-slate-700 hover:bg-slate-600 text-white text-sm">
+        Got it
+      </button>
+    </div>
+  </div>
+)}
     </div>
   );
 }
