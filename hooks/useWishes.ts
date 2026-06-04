@@ -63,8 +63,13 @@ export function useWishes() {
 
   useEffect(() => {
     refresh();
-    const interval = setInterval(refresh, 30000);
-    return () => clearInterval(interval);
+    const channel = supabase
+  .channel('wishes-changes')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'wishes' }, refresh)
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'votes' }, refresh)
+  .subscribe();
+
+return () => { supabase.removeChannel(channel); };
   }, [refresh]);
 
   const createWish = useCallback(
