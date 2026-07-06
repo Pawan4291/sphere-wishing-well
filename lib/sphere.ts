@@ -32,10 +32,12 @@ function extractIdentity(raw: any): WalletIdentity {
 
 export async function connectWallet(silent = false): Promise<{ client: any; identity: WalletIdentity }> {
   const { autoConnect } = await import('@unicitylabs/sphere-sdk/connect/browser');
+  const { SPHERE_NETWORKS } = await import('@unicitylabs/sphere-sdk/connect');
 
   const res = await autoConnect({
     dapp: DAPP_META,
     walletUrl: SPHERE_WALLET_URL,
+    network: SPHERE_NETWORKS.testnet2,
     permissions: [...PERMISSIONS] as any,
     silent,
   });
