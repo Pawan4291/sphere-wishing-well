@@ -3,18 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-  "dev": "set NODE_OPTIONS=--openssl-legacy-provider && next dev",
-  "build": "set NODE_OPTIONS=--openssl-legacy-provider && next build",
-  "start": "next start",
-  "lint": "next lint",
-  "deploy": "gh-pages -d out"
-},
-
-
-
+    "dev": "set NODE_OPTIONS=--openssl-legacy-provider && next dev",
+    "build": "set NODE_OPTIONS=--openssl-legacy-provider && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "deploy": "gh-pages -d out"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",
-    "@unicitylabs/sphere-sdk": "^0.7.2",
+    "@unicitylabs/sphere-sdk": "^0.11.4",
     "next": "14.2.29",
     "react": "^18",
     "react-dom": "^18"
@@ -29,7 +26,4 @@
     "tailwindcss": "^3",
     "typescript": "^5"
   }
-
-  
 }
-
