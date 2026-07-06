@@ -27,7 +27,6 @@ const DAPP_META = {
   name: 'Sphere Wishing Well',
   description: 'Cast wishes, vote with your wallet, see community predictions come true.',
   url: typeof window !== 'undefined' ? window.location.origin : '',
-  network: 'testnet2' as const,
 };
 
 const SESSION_KEY = 'wishing-well-session';
@@ -192,16 +191,14 @@ export async function sendUCT(
   if (!connectClient) throw new Error('Wallet not connected');
   if (!recipient) throw new Error('Recipient missing');
 
-  // Amount must be base units as string, coinId must be lowercase 64-hex
-  const amountBaseUnits = (BigInt(amountUCT) * 1_000_000_000_000_000_000n).toString();
 
   try {
-    await connectClient.intent('send', {
-      to: recipient,
-      amount: amountBaseUnits,
-      coinId: uctCoinIdHex,
-      ...(memo ? { memo } : {}),
-    });
+   await connectClient.intent('send', {
+  to: recipient,
+  amount: (BigInt(amountUCT) * 1_000_000_000_000_000_000n).toString(),
+  coinId: uctCoinIdHex.toLowerCase(),
+  ...(memo ? { memo } : {}),
+});
   } catch (e: any) {
     const msg = String(e?.message ?? e ?? '');
     if (
